@@ -55,23 +55,24 @@ func VendorTag(vendor string) (bg, fg string) {
 
 // StatusColor maps a usage percentage to the status indicator color (spec §9.2):
 //
-//	percent < 0        → gray   (N/A or fetch failed)
-//	percent < 70       → green
-//	70 <= percent < 90 → yellow
-//	percent >= 90      → red
+//	percent < 0         → gray   (N/A or fetch failed)
+//	percent < 70        → green
+//	70 <= percent <= 90 → yellow
+//	percent > 90        → red
 //
-// Boundaries follow the task-6 brief precisely: 70 is yellow (not green) and
-// 90 is red (not yellow). Check <0 first: a negative percent is also <70, so
-// the negative branch must win to surface "no data" distinctly.
+// Boundaries follow spec §9.2/§9.3 verbatim (the task-6 brief's ">=90 red"
+// wording was a typo — 90 is the last yellow value, 91 is the first red).
+// Check <0 first: a negative percent is also <70, so the negative branch must
+// win to surface "no data" distinctly.
 func StatusColor(percent float64) string {
 	switch {
 	case percent < 0:
 		return colorGray
 	case percent < 70:
 		return colorGreen
-	case percent < 90:
+	case percent <= 90: // [70,90] yellow (含 90)
 		return colorYellow
-	default:
+	default: // >90 red
 		return colorRed
 	}
 }

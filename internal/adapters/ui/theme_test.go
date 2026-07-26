@@ -79,7 +79,8 @@ func TestStatusColor(t *testing.T) {
 		{"green-yellow boundary (70)", 70.0, colorYellow},
 		{"mid yellow", 80.0, colorYellow},
 		{"just below yellow-red boundary (89)", 89.0, colorYellow},
-		{"yellow-red boundary (90)", 90.0, colorRed},
+		{"yellow-red boundary (90 inclusive yellow per spec)", 90.0, colorYellow},
+		{"just above yellow-red boundary (91 first red)", 91.0, colorRed},
 		{"fully consumed (100)", 100.0, colorRed},
 		{"over consumed (120)", 120.0, colorRed},
 		{"negative means N/A (-1)", -1.0, colorGray},
@@ -97,7 +98,9 @@ func TestStatusColor(t *testing.T) {
 }
 
 func TestInitializeTheme_AppliesTokyoNight(t *testing.T) {
-	t.Parallel()
+	// NOTE: deliberately NOT t.Parallel() — this test mutates the process-global
+	// tview.Styles table, which would race with any other ui test that touches
+	// Styles. The other StatusColor/VendorTag tests are pure and stay parallel.
 	// initializeTheme mutates tview.Styles (global by tview's design) and must
 	// return a usable Application. We assert non-nil and spot-check one style
 	// field to catch a regression where someone drops a setter.
