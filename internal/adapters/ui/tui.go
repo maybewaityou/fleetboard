@@ -129,17 +129,29 @@ func (t *TUI) Run() error {
 	return nil
 }
 
-// Render is the ports.View write path: it caches the dataset and refreshes the
-// list/details on the tview main loop. Safe to call from a goroutine (e.g. the
-// refresh service in Task 12) — queueDraw marshals the paint onto the UI loop.
+// Render is the ports.View write path. It may be called from any goroutine
+// (the refresh callbacks in doRefreshSelected/doRefreshAll spawn one; the Task
+// 12 service will too), so EVERY field write it causes must be marshalled onto
+// the tview main loop. In particular t.allCache is read by visibleUsages() on
+// the main loop (via handleSearchInput/applyCacheToViews), so writing it here
+// on the caller's goroutine would race with a concurrent keystroke. We avoid
+// that by performing both the cache assignment and the repaint inside a single
+// queueDraw callback — the main loop is the only goroutine that touches
+// allCache, so no synchronization primitive is needed.
+//
+// The queueDraw == nil branch covers pre-Run() callers (e.g. unit tests that
+// drive the TUI synchronously): there is no main loop yet, so we paint inline.
 func (t *TUI) Render(usages []domain.VendorUsage) {
-	t.allCache = usages
 	if t.queueDraw == nil {
 		// Run() hasn't started yet (e.g. unit test); paint synchronously.
+		t.allCache = usages
 		t.applyCacheToViews()
 		return
 	}
-	t.queueDraw(t.applyCacheToViews)
+	t.queueDraw(func() {
+		t.allCache = usages
+		t.applyCacheToViews()
+	})
 }
 
 func (t *TUI) buildComponents() *TUI {
