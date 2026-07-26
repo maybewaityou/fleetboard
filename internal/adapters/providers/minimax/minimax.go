@@ -1,0 +1,160 @@
+// Copyright 2026.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package minimax 实现 ports.UsageProvider，对接 MiniMax Token Plan 用量接口。
+//
+// 真实接口契约（调研所得）：
+//   - GET {BaseURL}/v1/token_plan/remains
+//     默认 BaseURL = https://api.minimaxi.com；国际版可覆盖为 https://api.minimax.io；
+//     acc.BaseURL 可覆盖。
+//   - 鉴权头：Authorization: Bearer <token_plan_key> —— 【必须带 "Bearer " 前缀】，
+//     这是该接口最易错点（与 GLM 裸 key 不同）。key 从 os.Getenv(acc.TokenEnv) 读取。
+//
+// 响应字段 usage_percent（或驼峰 usagePercent 变体）表示【剩余】比例（非已用！），
+// 故 used = 100 - usagePercent 必须反转。model_remains[] 含 start_time/end_time
+// （Unix 秒）描述当前计费窗口，取首项 end_time 作 ResetsAt。
+//
+// 最终映射为单维度 UsageDimension{Name:"Token Plan",
+// PercentUsed: 100-usagePercent, Unit:"%", ResetsAt: end_time, Source:"api-balanced"}，
+// 并调 VendorUsage.SelectPrimary()。
+package minimax
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/maybewaityou/fleetboard/internal/core/domain"
+	"github.com/maybewaityou/fleetboard/internal/core/ports"
+)
+
+const (
+	defaultBaseURL = "https://api.minimaxi.com"
+	usagePath      = "/v1/token_plan/remains"
+	httpTimeout    = 10 * time.Second
+
+	// sourceTag 标记维度数据来源为「接口实时拉取后平衡出的值」。
+	sourceTag = "api-balanced"
+
+	nameTokenPlan = "Token Plan"
+	unitPercent   = "%"
+
+	// usagePercentMax 是接口返回「剩余比例」的上限（100% = 完全未用）。
+	usagePercentMax = 100
+)
+
+// 编译期断言：*Provider 实现 ports.UsageProvider。
+var _ ports.UsageProvider = (*Provider)(nil)
+
+// Provider 是 MiniMax 用量适配器。零值不可用，请用 New 构造。
+type Provider struct {
+	hc *http.Client
+}
+
+// New 构造一个 MiniMax Provider，HTTP 客户端超时 10s。
+func New() *Provider {
+	return &Provider{hc: &http.Client{Timeout: httpTimeout}}
+}
+
+// Vendor 返回厂商标识，对应 domain.Account.Vendor。
+func (p *Provider) Vendor() string { return "minimax" }
+
+// apiResp 是 MiniMax token_plan/remains 接口的响应结构。
+//
+// usage_percent 在真实 API 里存在 snake_case 与 camelCase 两种变体，
+// 故同时声明两个字段，解码后用 usagePercent() 取非零那个（二者不会同时非零）。
+type apiResp struct {
+	UsagePercent      int           `json:"usage_percent"`
+	UsagePercentCamel int           `json:"usagePercent"`
+	ModelRemains      []modelRemain `json:"model_remains"`
+}
+
+// usagePercent 返回剩余比例（0-100）。优先取 camelCase 变体；
+// 两者都为 0 时视为「0% 剩余 = 已耗尽」（合法语义）。
+func (r apiResp) usagePercent() int {
+	if r.UsagePercentCamel != 0 {
+		return r.UsagePercentCamel
+	}
+	return r.UsagePercent
+}
+
+// modelRemain 描述单个模型/计费窗口的剩余信息。
+// start_time / end_time 均为 Unix 秒级时间戳。
+type modelRemain struct {
+	Model     string `json:"model"`
+	StartTime int64  `json:"start_time"`
+	EndTime   int64  `json:"end_time"`
+}
+
+// FetchUsage 拉取该账号当前 Token Plan 用量，返回单维度 VendorUsage。
+// 出错时 VendorUsage 仍被填充（账号字段 + FetchedAt + Err），便于上层展示局部信息。
+func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.VendorUsage, error) {
+	u := domain.VendorUsage{
+		AccountID: acc.ID,
+		Vendor:    "minimax",
+		Label:     acc.Label,
+		FetchedAt: time.Now(),
+	}
+
+	key := os.Getenv(acc.TokenEnv)
+	base := acc.BaseURL
+	if base == "" {
+		base = defaultBaseURL
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+usagePath, nil)
+	if err != nil {
+		u.Err = fmt.Errorf("minimax: build request: %w", err)
+		return u, u.Err
+	}
+	// 鉴权：必须带 "Bearer " 前缀（MiniMax 该接口的易错点，区别于 GLM 的裸 key）。
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.hc.Do(req)
+	if err != nil {
+		u.Err = fmt.Errorf("minimax: request: %w", err)
+		return u, u.Err
+	}
+	defer resp.Body.Close()
+
+	var r apiResp
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		u.Err = fmt.Errorf("minimax: decode response: %w", err)
+		return u, u.Err
+	}
+
+	u.Dimensions = []domain.UsageDimension{buildDimension(r)}
+	u.SelectPrimary()
+	return u, nil
+}
+
+// buildDimension 把 MiniMax 响应映射为单维度 UsageDimension。
+//   - usage_percent 是【剩余】比例 → PercentUsed = 100 - usagePercent（反转）
+//   - ResetsAt 取 model_remains[0].end_time（Unix 秒）；空数组则零值（UI 层会跳过）
+func buildDimension(r apiResp) domain.UsageDimension {
+	d := domain.UsageDimension{
+		Name:        nameTokenPlan,
+		PercentUsed: float64(usagePercentMax - r.usagePercent()),
+		Unit:        unitPercent,
+		Source:      sourceTag,
+	}
+	if len(r.ModelRemains) > 0 {
+		d.ResetsAt = time.Unix(r.ModelRemains[0].EndTime, 0).UTC()
+	}
+	return d
+}
