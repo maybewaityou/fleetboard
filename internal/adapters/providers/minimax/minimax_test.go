@@ -186,6 +186,39 @@ func TestFetchUsageServerDown(t *testing.T) {
 	}
 }
 
+// TestFetchUsageNon200 验证非 2xx HTTP 状态（如 401）被状态守卫拦截：
+// 即使 body 是合法 JSON 错误体（缺 usage_percent），也不会被静默解码成 PercentUsed==100。
+// MiniMax 鉴权失败典型响应：{"base_resp":{"status_code":1004,...}}。
+func TestFetchUsageNon200(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"base_resp":{"status_code":1004,"status_msg":"invalid api key"}}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINIMAX_TOKEN_PLAN_KEY", "BADKEY")
+	acc := domain.Account{ID: "m", Vendor: "minimax", Label: "l", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err == nil {
+		t.Fatal("expected error for HTTP 401, got nil")
+	}
+	if u.Err == nil {
+		t.Error("u.Err should be set on non-2xx status")
+	}
+	// 关键：不能静默把缺字段的错误体当成「100% 已耗尽」。
+	// Dimensions 应为空（解码从未发生），Primary 也应为 nil。
+	if len(u.Dimensions) != 0 {
+		t.Errorf("Dimensions should be empty on HTTP error, got %+v (would risk PercentUsed==100)", u.Dimensions)
+	}
+	if u.Primary != nil {
+		t.Errorf("Primary should be nil on HTTP error, got %+v", u.Primary)
+	}
+	// 错误路径下仍填充账号字段
+	if u.AccountID != "m" || u.Vendor != "minimax" || u.Label != "l" {
+		t.Errorf("error-path VendorUsage fields wrong: %+v", u)
+	}
+}
+
 // TestFetchUsageBadJSON 验证解码失败返回错误且填充 u.Err。
 func TestFetchUsageBadJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

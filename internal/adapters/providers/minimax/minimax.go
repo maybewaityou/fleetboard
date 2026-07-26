@@ -85,6 +85,10 @@ type apiResp struct {
 
 // usagePercent 返回剩余比例（0-100）。优先取 camelCase 变体；
 // 两者都为 0 时视为「0% 剩余 = 已耗尽」（合法语义）。
+//
+// 假设（经观察固化）：真实 API 不会同一次响应里同时输出 snake_case 与 camelCase 两个键。
+// 故「camelCase==0 且 snake_case>0」只会出现在「API 只回了 snake_case」这一种情形，
+// 此时 fallthrough 取 snake_case 是正确的；不会与「camelCase 真为 0」混淆。
 func (r apiResp) usagePercent() int {
 	if r.UsagePercentCamel != 0 {
 		return r.UsagePercentCamel
@@ -131,6 +135,13 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.V
 		return u, u.Err
 	}
 	defer resp.Body.Close()
+
+	// 状态守卫：MiniMax 错误响应（401/403/500…）常带 JSON 错误体但缺 usage_percent，
+	// 若不拦截会解码出 usagePercent()==0 → 误报 "100% 已耗尽"。必须在解码前拦截。
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		u.Err = fmt.Errorf("minimax: HTTP %d", resp.StatusCode)
+		return u, u.Err
+	}
 
 	var r apiResp
 	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
