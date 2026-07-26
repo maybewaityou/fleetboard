@@ -28,3 +28,11 @@ type UsageProvider interface {
 	// FetchUsage 拉取该账号当前用量；返回带多维度信息的 VendorUsage。
 	FetchUsage(ctx context.Context, acc domain.Account) (domain.VendorUsage, error)
 }
+
+// ProviderLookup 按 vendor 名取出已登记的 UsageProvider。
+// 它是 service 层访问 adapter 注册表的边界：core/services 依赖此 ports 接口，
+// 而非反向依赖 adapters/providers。*providers.Registry 通过其 Get 方法隐式实现此接口。
+type ProviderLookup interface {
+	// Get 返回 vendor 对应的 provider；未登记时 ok=false。
+	Get(vendor string) (UsageProvider, bool)
+}
