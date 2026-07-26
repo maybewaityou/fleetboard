@@ -91,19 +91,28 @@ const (
 )
 
 // internal/core/domain/vendor_usage.go
+// VendorUsage 是一次拉取的结果。一个账号可有多个额度维度
+// （如 GLM 同时有 5 小时额度 / 每周额度 / MCP 每月三档）。
 type VendorUsage struct {
-    AccountID    string
-    Vendor       string
-    Label        string
-    Used         int64       // 接口返回的已用量
-    Limit        int64       // 接口返回的上限；缺失时无百分比
-    PercentUsed  float64     // Used / Limit，Limit<=0 时为 -1（N/A）
-    Remaining    int64
-    ResetsAt     time.Time   // 接口返回 or 按 ResetPolicy 推算
-    Source       string      // "api-balanced" | "api-estimate"，标可信度
-    Raw          string      // 原始响应摘要（调试用，脱敏）
-    FetchedAt    time.Time
-    Err          error       // 单账号失败不连坐，UI 标红继续展示其他
+    AccountID  string
+    Vendor     string
+    Label      string
+    Dimensions []UsageDimension // 全部额度维度；详情面板展示
+    Primary    *UsageDimension  // 主维度（列表展示用）：取 PercentUsed 最大者
+    FetchedAt  time.Time
+    Err        error            // 单账号失败不连坐，UI 标红继续展示其他
+}
+
+// UsageDimension 是单个额度维度（一个窗口/一档配额）。
+type UsageDimension struct {
+    Name        string   // "5小时额度" / "每周额度" / "Token Plan"
+    Used        int64    // 已用绝对值；仅百分比接口时为 0
+    Limit       int64    // 上限绝对值；仅百分比接口时为 0
+    PercentUsed float64  // 已用百分比；无数据时为 -1（N/A）
+    Remaining   int64    // 剩余绝对值；仅次数类返回
+    ResetsAt    time.Time // 接口返回的重置时间
+    Unit        string   // "%" / "次" / "tokens"
+    Source      string   // "api-balanced" | "api-estimate"，标可信度
 }
 ```
 
@@ -167,7 +176,7 @@ root = FlexRow {
 
 ### 9.2 列表项（单行 `tview.List`，无迷你进度条）
 
-每行内容：`配置名` + `[平台 tag · 带背景色]` + `百分比` + `状态点`
+每行内容：`配置名` + `[平台 tag · 带背景色]` + `百分比`（取主维度，即最接近上限那档）+ `状态点`
 
 - 平台 tag：用 tview `[fg:bg]` 双色语法渲染色块，背景色取自 `theme.go` 的 `vendorColor` map：
   - `glm`=#7C3AED（紫）、`minimax`=#EF4444（红）、`kimi`=#06B6D4（青）、`anthropic`=#D97757（橙）、`openai`=#10A37F（绿）、`cursor`=#6366F1（靛）、`copilot`=#0969DA（蓝）
@@ -176,10 +185,9 @@ root = FlexRow {
 
 ### 9.3 详情面板（右侧）
 
-选中账号的详细信息：
-- **大进度条**（三色：<70% 绿 / 70-90% 黄 / >90% 红）
-- 已用 / 上限 / 剩余（带"⚠ 接近上限"提示）
-- 重置时间（"2d 后（每月 1 日 00:00）"格式）
+选中账号的详细信息，**列出该账号全部额度维度**（GLM 有 5h/每周/每月多档，每档独立展示）：
+- 每个维度：维度名 + **进度条**（三色：<70% 绿 / 70-90% 黄 / >90% 红）+ 已用/上限/剩余 + 重置时间
+- "⚠ 接近上限"提示（任一维度 >90%）
 - 接口名（如 `token_plan/remains`）
 - 拉取时间 + 数据来源（`api-balanced` / `api-estimate`）
 - 失败时显示错误原因（红色）
