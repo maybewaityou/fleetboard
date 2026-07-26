@@ -12,22 +12,40 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Command fleetboard is the AI coding-plan usage dashboard TUI. This main.go is
-// the task-8 UI-shell smoke harness: it wires a few mock accounts into the TUI
-// and wires r/R to re-fetch the mock so both refresh keys give visible feedback.
-// Task 9/12 replaces this with the real service + config store.
+// Command fleetboard is the AI coding-plan usage dashboard TUI.
+//
+// This is the real Task-12 assembly: it wires the concrete adapters (yaml config
+// store, glm/minimax providers, services.Aggregator) into the tview TUI and
+// exposes two refresh keys — r re-fetches the selected account (FetchOne) and R
+// re-fetches every account (FetchAll). A background goroutine re-fetches all
+// accounts on the configured interval (Refresh.Interval, default 5m) and hands
+// the fresh dataset to TUI.Render, which marshals the repaint onto the tview
+// main loop so the write stays race-free.
+//
+// Tokens never enter main: each provider reads its own token from the env var
+// named by the account's TokenEnv field. Errors from FetchAll/FetchOne are
+// passed through untouched in VendorUsage.Err — the UI marks the row red but
+// still renders whatever dimensions the provider returned.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 
+	"github.com/maybewaityou/fleetboard/internal/adapters/config/yaml"
+	"github.com/maybewaityou/fleetboard/internal/adapters/providers"
+	"github.com/maybewaityou/fleetboard/internal/adapters/providers/glm"
+	"github.com/maybewaityou/fleetboard/internal/adapters/providers/minimax"
 	"github.com/maybewaityou/fleetboard/internal/adapters/ui"
 	"github.com/maybewaityou/fleetboard/internal/core/domain"
+	"github.com/maybewaityou/fleetboard/internal/core/services"
 	"github.com/maybewaityou/fleetboard/internal/logger"
 )
 
@@ -35,6 +53,11 @@ var (
 	version   = "develop"
 	gitCommit = "unknown"
 )
+
+// defaultRefreshInterval is used when cfg.Refresh.Interval is empty or fails to
+// parse. 5m matches the spec default and is long enough that a parked terminal
+// does not hammer vendor rate limits.
+const defaultRefreshInterval = 5 * time.Minute
 
 func main() {
 	sugar, err := logger.New("FLEETBOARD")
@@ -47,19 +70,8 @@ func main() {
 	root := &cobra.Command{
 		Use:   "fleetboard",
 		Short: "AI coding plan usage dashboard TUI",
-		RunE: func(*cobra.Command, []string) error {
-			seed := newMockData()
-			tui := ui.NewTUI(ui.Config{
-				Logger:      sugar,
-				Version:     version,
-				Commit:      gitCommit,
-				InitialData: seed.snapshot(),
-				// r/R re-fetch the mock (with mild drift) so both refresh keys
-				// produce visible motion during manual smoke.
-				RefreshSelected: func() []domain.VendorUsage { return seed.refreshSelected() },
-				RefreshAll:      func() []domain.VendorUsage { return seed.refreshAll() },
-			})
-			return tui.Run()
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return run(sugar)
 		},
 	}
 	root.SilenceUsage = true
@@ -69,112 +81,211 @@ func main() {
 	}
 }
 
-// mockData holds a small in-memory set of accounts and jitters percents on each
-// refresh so r/R have something visible to do. It exists only for the shell
-// smoke test; the real data path comes in Task 9/12.
-type mockData struct {
-	mu       sync.Mutex
-	tick     int
-	accounts []domain.VendorUsage
+// run is the full Task-12 wiring: load config, build the registry/aggregator,
+// fetch initial usage, construct the TUI with both refresh callbacks, start the
+// background refresher, then block on the TUI main loop. Cleanup is via deferred
+// context cancel + refresher join, so on exit every spawned goroutine has
+// drained before the process tears down.
+func run(sugar *zap.SugaredLogger) error {
+	// Config path: ~/.fleetboard/config.yaml. A missing file is first-run; the
+	// yaml store returns an empty Config rather than erroring, so the UI shows
+	// its "no accounts configured" empty state instead of crashing.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("resolve home dir: %w", err)
+	}
+	cfgPath := filepath.Join(home, ".fleetboard", "config.yaml")
+	store := yaml.NewStore(cfgPath)
+	cfg, err := store.Load()
+	if err != nil {
+		// Degrade rather than abort: a malformed YAML should not prevent the user
+		// from seeing the dashboard at all. They get the empty state and can fix
+		// the file out-of-band.
+		sugar.Warnw("load config failed; using empty config", "path", cfgPath, "error", err)
+		cfg = domain.Config{}
+	}
+	sugar.Infow("config loaded", "path", cfgPath, "accounts", len(cfg.Accounts))
+
+	// Hexagonal wiring: the registry holds the concrete adapters; the aggregator
+	// depends only on ports.ProviderLookup, which *providers.Registry satisfies.
+	reg := providers.NewRegistry(glm.New(), minimax.New())
+	agg := services.NewAggregator(reg)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// usageCache holds the last full per-account dataset. Both refresh callbacks
+	// and the background refresher write through it so r (refresh-selected) can
+	// fold a single FetchOne result back into the rest and return the whole
+	// dataset the TUI re-renders against (Render replaces allCache wholesale, so
+	// a selected-refresh must hand back the full set, not just the one account).
+	// The mutex serializes replace/snapshot/updateOne so a user-driven R and a
+	// background tick cannot tear the slice header; returned slices are copies so
+	// the TUI owns its snapshot.
+	cache := &usageCache{}
+
+	// Initial data: fetch every configured account so the first frame already
+	// shows live usage. Per-account errors land in VendorUsage.Err and are passed
+	// through untouched (task-7 err-transparency contract).
+	initial := agg.FetchAll(ctx, cfg.Accounts)
+	cache.replaceAll(initial)
+
+	refreshAll := func() []domain.VendorUsage {
+		usages := agg.FetchAll(ctx, cfg.Accounts)
+		cache.replaceAll(usages)
+		return cache.snapshot()
+	}
+	refreshSelected := func(accountID string) []domain.VendorUsage {
+		acc, ok := findAccount(cfg.Accounts, accountID)
+		if !ok {
+			// Selection points at an account no longer in config (or is empty on
+			// first run before the user has moved the cursor). Return nil so the
+			// TUI leaves the view untouched instead of collapsing to empty.
+			return nil
+		}
+		cache.updateOne(agg.FetchOne(ctx, acc))
+		return cache.snapshot()
+	}
+
+	t := ui.NewTUI(ui.Config{
+		Logger:          sugar,
+		Version:         version,
+		Commit:          gitCommit,
+		InitialData:     cache.snapshot(),
+		RefreshSelected: refreshSelected,
+		RefreshAll:      refreshAll,
+	})
+
+	// Background refresher: tick on cfg.Refresh.Interval (default 5m) and
+	// re-fetch every account, handing the fresh dataset to Render. Render
+	// marshals onto the tview main loop, so calling it from here is race-safe.
+	// Skipped when there are no accounts — FetchAll-on-empty is harmless but the
+	// ticker would spin forever for no benefit; the empty-state UI is enough.
+	interval := parseRefreshInterval(cfg.Refresh.Interval, sugar)
+	if len(cfg.Accounts) == 0 {
+		sugar.Infow("no accounts configured; background refresh disabled "+
+			"(edit "+cfgPath+" and restart)", "path", cfgPath)
+		cancel() // nothing to refresh; release the context eagerly
+	} else {
+		stop := startBackgroundRefresher(ctx, cancel, t, refreshAll, interval, sugar)
+		defer stop()
+	}
+
+	if err := t.Run(); err != nil {
+		return fmt.Errorf("tui run: %w", err)
+	}
+	return nil
 }
 
-func newMockData() *mockData {
-	now := time.Now()
-	reset := now.Add(2 * time.Hour)
-	m := &mockData{}
-	m.accounts = []domain.VendorUsage{
-		{
-			AccountID: "glm-prod", Vendor: "glm", Label: "GLM 生产",
-			FetchedAt: now,
-			Dimensions: []domain.UsageDimension{
-				{Name: "GLM-4.5", Used: 710_000, Limit: 1_000_000, PercentUsed: 71, Remaining: 290_000, ResetsAt: reset, Unit: "tok", Source: "api-balanced"},
-				{Name: "GLM-4-Air", Used: 120_000, Limit: 500_000, PercentUsed: 24, Remaining: 380_000, ResetsAt: reset, Unit: "tok", Source: "api-balanced"},
-			},
-		},
-		{
-			AccountID: "minimax-dev", Vendor: "minimax", Label: "MiniMax Dev",
-			FetchedAt: now,
-			Dimensions: []domain.UsageDimension{
-				{Name: "abab6.5", Used: 940_000, Limit: 1_000_000, PercentUsed: 94, Remaining: 60_000, ResetsAt: reset.Add(3 * time.Hour), Unit: "tok", Source: "api-balanced"},
-			},
-		},
-		{
-			AccountID: "kimi-personal", Vendor: "kimi", Label: "Kimi 个人",
-			FetchedAt: now,
-			Dimensions: []domain.UsageDimension{
-				{Name: "moonshot", Used: 40_000, Limit: 200_000, PercentUsed: 20, Remaining: 160_000, ResetsAt: reset, Unit: "tok", Source: "api-balanced"},
-			},
-		},
-		{
-			// Partial-failure account: err is set but dimensions are still
-			// populated, exercising the task-7 err-transparency contract in the
-			// UI (⚠ marker in list, dimensions still shown in details).
-			AccountID: "anthropic-stg", Vendor: "anthropic", Label: "Anthropic Staging",
-			FetchedAt: now, Err: fmt.Errorf("partial: rate-limited"),
-			Dimensions: []domain.UsageDimension{
-				{Name: "claude-sonnet", Used: 5, Limit: 0, PercentUsed: -1, Remaining: 0, ResetsAt: time.Time{}, Unit: "req", Source: "api-balanced"},
-			},
-		},
-	}
-	for i := range m.accounts {
-		m.accounts[i].SelectPrimary()
-	}
-	return m
+// usageCache is the in-process snapshot of the latest per-account usage. It is
+// shared between the initial fetch, the r/R callbacks, and the background
+// refresher. The mutex makes every accessor safe to call from any goroutine.
+type usageCache struct {
+	mu      sync.Mutex
+	current []domain.VendorUsage
 }
 
-func (m *mockData) snapshot() []domain.VendorUsage {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]domain.VendorUsage, len(m.accounts))
-	copy(out, m.accounts)
+// replaceAll swaps the cached dataset. Callers must not retain aliases into the
+// slice they hand over (snapshot returns a copy for that).
+func (c *usageCache) replaceAll(usages []domain.VendorUsage) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.current = usages
+}
+
+// snapshot returns a shallow copy of the current dataset. Callers own the
+// returned slice — mutating it does not affect the cache, which matters because
+// the TUI's Render hands it to queueDraw and a later tick must not mutate what
+// the main loop is still painting.
+func (c *usageCache) snapshot() []domain.VendorUsage {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]domain.VendorUsage, len(c.current))
+	copy(out, c.current)
 	return out
 }
 
-// refreshSelected bumps the selected GLM account's primary usage slightly so r
-// shows motion. In the shell we don't know which account is selected from here,
-// so we drift every account's first dimension by a small, bounded amount — the
-// list/details still visibly update on keypress.
-func (m *mockData) refreshSelected() []domain.VendorUsage {
-	return m.jitter()
+// updateOne replaces the cache entry whose AccountID matches u.AccountID, or
+// appends u when no such entry exists. Used by refresh-selected to fold a single
+// FetchOne result back into the full dataset without disturbing the others.
+func (c *usageCache) updateOne(u domain.VendorUsage) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i := range c.current {
+		if c.current[i].AccountID == u.AccountID {
+			c.current[i] = u
+			return
+		}
+	}
+	// Defensive append: selection should always point at an existing row, but if
+	// it does not we keep the cache complete rather than silently dropping the
+	// freshly-fetched account.
+	c.current = append(c.current, u)
 }
 
-func (m *mockData) refreshAll() []domain.VendorUsage {
-	return m.jitter()
+// findAccount resolves an AccountID back to its full config (FetchOne needs the
+// vendor/token_env/base_url fields, not just the id).
+func findAccount(accs []domain.Account, id string) (domain.Account, bool) {
+	for _, a := range accs {
+		if a.ID == id {
+			return a, true
+		}
+	}
+	return domain.Account{}, false
 }
 
-func (m *mockData) jitter() []domain.VendorUsage {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.tick++
-	for i := range m.accounts {
-		u := &m.accounts[i]
-		u.FetchedAt = time.Now()
-		for j := range u.Dimensions {
-			d := &u.Dimensions[j]
-			if d.PercentUsed < 0 {
-				continue
-			}
-			// oscillate ±2% per tick so motion is visible but bounded.
-			delta := float64(2 * (m.tick % 5))
-			d.PercentUsed = clampPct(d.PercentUsed - 1 + delta)
-			d.Used = int64(float64(d.Limit) * d.PercentUsed / 100)
-			if d.Limit > 0 {
-				d.Remaining = d.Limit - d.Used
+// parseRefreshInterval parses cfg.Refresh.Interval with time.ParseDuration and
+// falls back to defaultRefreshInterval on empty/invalid/non-positive input,
+// logging the substitution so a typo in the YAML is discoverable.
+func parseRefreshInterval(s string, sugar *zap.SugaredLogger) time.Duration {
+	if s == "" {
+		return defaultRefreshInterval
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d <= 0 {
+		sugar.Warnw("invalid refresh interval, using default",
+			"value", s, "default", defaultRefreshInterval.String(), "error", err)
+		return defaultRefreshInterval
+	}
+	return d
+}
+
+// startBackgroundRefresher launches a goroutine that calls refreshAll on every
+// ticker tick and hands the result to view.Render. The returned stop function
+// cancels the context (which unblocks the goroutine on its next select), stops
+// the ticker, and blocks until the goroutine has exited — so callers can defer
+// it to guarantee no goroutine outlives run(). It is safe to call stop after the
+// context has already been cancelled (e.g. by a signal path); it is idempotent.
+func startBackgroundRefresher(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	view *ui.TUI,
+	refreshAll func() []domain.VendorUsage,
+	interval time.Duration,
+	sugar *zap.SugaredLogger,
+) (stop func()) {
+	ticker := time.NewTicker(interval)
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				usages := refreshAll()
+				view.Render(usages)
+				sugar.Debugw("background refresh tick", "accounts", len(usages))
 			}
 		}
-		u.SelectPrimary()
-	}
-	out := make([]domain.VendorUsage, len(m.accounts))
-	copy(out, m.accounts)
-	return out
-}
+	}()
 
-func clampPct(p float64) float64 {
-	if p < 0 {
-		return 0
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			cancel()
+			ticker.Stop()
+			<-done
+		})
 	}
-	if p > 100 {
-		return 100
-	}
-	return p
 }

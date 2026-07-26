@@ -35,21 +35,34 @@ import (
 // two methods the service layer (Task 9/12) drives the screen through.
 var _ ports.View = (*TUI)(nil)
 
-// RefreshFunc is the shape of both refresh callbacks. It returns the full
-// post-refresh dataset so the TUI can re-render atomically; a nil return is
-// treated as "no change". Task 9/12 wires this to the real service.
-type RefreshFunc func() []domain.VendorUsage
+// RefreshAllFunc is the shape of the "refresh all" callback (R). It returns the
+// full post-refresh dataset so the TUI can re-render atomically; a nil return is
+// treated as "no change". Task 12 wires this to services.Aggregator.FetchAll.
+type RefreshAllFunc func() []domain.VendorUsage
+
+// RefreshSelectedFunc is the shape of the "refresh selected" callback (r). It
+// receives the currently-selected AccountID and returns the full post-refresh
+// dataset (the selected account re-fetched and merged back into the rest) so the
+// TUI re-renders atomically; a nil return is treated as "no change".
+//
+// Race-safety: doRefreshSelected reads t.selectedID on the tview main loop and
+// passes the string *by value* into this callback, which runs on a background
+// goroutine. That keeps the refresh path data-race-free under `go test -race`
+// without adding a lock — the same discipline Render already follows by
+// marshalling its writes through queueDraw. Task 12 wires this to
+// services.Aggregator.FetchOne.
+type RefreshSelectedFunc func(accountID string) []domain.VendorUsage
 
 // Config parameterizes the TUI. RefreshSelected/RefreshAll are optional: when
-// nil, r/R flash a "not wired" status instead of no-op-ing silently, so the
-// shell makes its own wiring state obvious during manual smoke.
+// nil, r/R flash a "not wired" status instead of no-op-ing silently, so a
+// misconfigured assembly makes its own wiring state obvious during smoke.
 type Config struct {
 	Logger          *zap.SugaredLogger
 	Version         string
 	Commit          string
 	InitialData     []domain.VendorUsage
-	RefreshSelected RefreshFunc // r — refresh the currently-selected account
-	RefreshAll      RefreshFunc // R — refresh every account
+	RefreshSelected RefreshSelectedFunc // r — refresh the currently-selected account
+	RefreshAll      RefreshAllFunc      // R — refresh every account
 }
 
 // TUI is the runnable tview application. It implements ports.View (Run + Render).
@@ -77,8 +90,8 @@ type TUI struct {
 	// a re-render (mirrors lazytmux's SelectByName-after-UpdateSessions flow).
 	selectedID string
 
-	refreshSelected RefreshFunc
-	refreshAll      RefreshFunc
+	refreshSelected RefreshSelectedFunc
+	refreshAll      RefreshAllFunc
 
 	// statusTimer reverts a transient footer message back to the default hints.
 	statusTimer *time.Timer
@@ -323,16 +336,22 @@ func (t *TUI) handleGlobalKeys(e *tcell.EventKey) *tcell.EventKey {
 }
 
 // doRefreshSelected invokes the r callback. If it returns data we re-render;
-// otherwise we flash a status so the shell always gives visible feedback. Task
-// 12 replaces the placeholder callback with the real service call.
+// otherwise we flash a status so the shell always gives visible feedback.
+//
+// We snapshot t.selectedID on the main loop (here) and pass the string into the
+// callback, which runs on a background goroutine. Reading t.selectedID from that
+// goroutine would race with handleSelectionChange's writes on the main loop;
+// passing the value keeps the refresh path lock-free and race-clean (same
+// discipline Render uses via queueDraw).
 func (t *TUI) doRefreshSelected() {
 	if t.refreshSelected == nil {
 		t.setStatusTemporary("[" + colorYellow + "]refresh not wired[-]")
 		return
 	}
 	t.setStatusTemporary("[" + colorCyan + "]refreshing selected…[-]")
+	selectedID := t.selectedID
 	go func() {
-		usages := t.refreshSelected()
+		usages := t.refreshSelected(selectedID)
 		if usages != nil {
 			t.Render(usages)
 		}
