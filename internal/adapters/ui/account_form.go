@@ -58,10 +58,13 @@ func NewAccountForm() *AccountForm {
 		SetTitle(" Account ").
 		SetTitleColor(tcell.GetColor(colorTitle)).
 		SetBorderColor(tcell.GetColor(colorBorder))
-	f.form.AddInputField("Label", "", 0, nil, nil)
-	f.form.AddDropDown("Provider", providerOptions, 0, nil)
-	f.form.AddInputField("BaseURL", "", 0, nil, nil)
-	f.form.AddInputField("TokenEnv", "", 0, nil, nil)
+	f.form.AddInputField("Label:", "", 0, nil, nil)
+	f.form.AddDropDown("Provider:", providerOptions, 0, nil)
+	f.form.AddInputField("BaseURL:", "", 0, nil, nil)
+	f.form.AddInputField("TokenEnv:", "", 0, nil, nil)
+	// 标签对齐 lazytmux（colorAccent 蓝）——补上当初"仿 lazytmux"漏掉的 SetLabelColor，
+	// 否则标签走 tview 默认 SecondaryTextColor（colorSecondary 灰）。
+	f.form.SetLabelColor(tcell.GetColor(colorAccent))
 	f.form.SetBorderPadding(0, 0, 1, 1)
 
 	// placeholder：每个字段给提示；Provider 下拉清空预选（idx=-1 显示 noSelection 文本）。
