@@ -26,10 +26,11 @@ import (
 )
 
 // goldenPayload 是 GLM 配额接口的固定金样本（3 个维度：两个 TOKENS_LIMIT + 一个 TIME_LIMIT）。
+// nextResetTime 是真实 API 返回的 Unix 毫秒数（13 位 number，非 RFC3339 字符串）。
 const goldenPayload = `{"code":200,"data":{"level":"pro","limits":[
-  {"type":"TOKENS_LIMIT","percentage":44,"nextResetTime":"2026-04-01T00:00:00Z"},
-  {"type":"TOKENS_LIMIT","percentage":53,"nextResetTime":"2026-04-08T00:00:00Z"},
-  {"type":"TIME_LIMIT","percentage":7,"usage":1000,"currentValue":72,"remaining":928,"nextResetTime":"2026-05-01T00:00:00Z"}]}}`
+  {"type":"TOKENS_LIMIT","percentage":44,"nextResetTime":1775001600000},
+  {"type":"TOKENS_LIMIT","percentage":53,"nextResetTime":1775606400000},
+  {"type":"TIME_LIMIT","percentage":7,"usage":1000,"currentValue":72,"remaining":928,"nextResetTime":1777593600000}]}}`
 
 func TestVendorReturnsGLM(t *testing.T) {
 	if got := New().Vendor(); got != "glm" {
@@ -142,8 +143,8 @@ func TestFetchUsageGolden(t *testing.T) {
 // 实现也必须按 reset 时间升序重排后赋名。
 func TestFetchUsageUnsortedTokens(t *testing.T) {
 	payload := `{"code":200,"data":{"limits":[
-	  {"type":"TOKENS_LIMIT","percentage":53,"nextResetTime":"2026-04-08T00:00:00Z"},
-	  {"type":"TOKENS_LIMIT","percentage":44,"nextResetTime":"2026-04-01T00:00:00Z"}]}}`
+	  {"type":"TOKENS_LIMIT","percentage":53,"nextResetTime":1775606400},
+	  {"type":"TOKENS_LIMIT","percentage":44,"nextResetTime":1775001600}]}}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, payload)
 	}))

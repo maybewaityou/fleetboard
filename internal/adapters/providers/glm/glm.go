@@ -91,12 +91,12 @@ type apiResp struct {
 
 // apiLimit 是 limits 数组中的单条额度。
 type apiLimit struct {
-	Type          string `json:"type"`
-	Percentage    int    `json:"percentage"`
-	Usage         int64  `json:"usage"`
-	CurrentValue  int64  `json:"currentValue"`
-	Remaining     int64  `json:"remaining"`
-	NextResetTime string `json:"nextResetTime"`
+	Type          string      `json:"type"`
+	Percentage    int         `json:"percentage"`
+	Usage         int64       `json:"usage"`
+	CurrentValue  int64       `json:"currentValue"`
+	Remaining     int64       `json:"remaining"`
+	NextResetTime json.Number `json:"nextResetTime"`
 }
 
 // FetchUsage 拉取该账号当前用量，返回多维度 VendorUsage。
@@ -162,7 +162,7 @@ func buildDimensions(limits []apiLimit) []domain.UsageDimension {
 				Limit:       l.Usage,
 				Remaining:   l.Remaining,
 				PercentUsed: float64(l.Percentage),
-				ResetsAt:    parseRFC3339(l.NextResetTime),
+				ResetsAt:    parseResetTime(l.NextResetTime),
 				Unit:        unitCount,
 				Source:      sourceTag,
 			})
@@ -171,9 +171,9 @@ func buildDimensions(limits []apiLimit) []domain.UsageDimension {
 		}
 	}
 
-	// TOKENS_LIMIT 按 nextResetTime 升序：RFC3339 字符串可正确字典序排序。
+	// TOKENS_LIMIT 按 nextResetTime 升序（数字时间戳，用解析后的 time 比较，兼容秒/毫秒）。
 	sort.Slice(tokens, func(i, j int) bool {
-		return tokens[i].NextResetTime < tokens[j].NextResetTime
+		return parseResetTime(tokens[i].NextResetTime).Before(parseResetTime(tokens[j].NextResetTime))
 	})
 	tokenNames := []string{nameTokens5h, nameTokensWeekly}
 	for i, l := range tokens {
@@ -184,7 +184,7 @@ func buildDimensions(limits []apiLimit) []domain.UsageDimension {
 		dims = append(dims, domain.UsageDimension{
 			Name:        name,
 			PercentUsed: float64(l.Percentage),
-			ResetsAt:    parseRFC3339(l.NextResetTime),
+			ResetsAt:    parseResetTime(l.NextResetTime),
 			Unit:        unitPercent,
 			Source:      sourceTag,
 		})
@@ -192,14 +192,18 @@ func buildDimensions(limits []apiLimit) []domain.UsageDimension {
 	return dims
 }
 
-// parseRFC3339 解析 RFC3339 时间字符串；空串或失败返回零值（UI 层会跳过零 ResetsAt）。
-func parseRFC3339(s string) time.Time {
-	if s == "" {
+// parseResetTime 解析 nextResetTime（真实 API 返回的 Unix 秒或毫秒 number）为 time.Time。
+// ≥1e12（13 位）视为毫秒，否则视为秒。空值或解析失败返回零值（UI 层会跳过零 ResetsAt）。
+func parseResetTime(n json.Number) time.Time {
+	if n == "" {
 		return time.Time{}
 	}
-	t, err := time.Parse(time.RFC3339, s)
+	v, err := n.Int64()
 	if err != nil {
 		return time.Time{}
 	}
-	return t
+	if v >= 1_000_000_000_000 { // 13 位 = 毫秒
+		return time.Unix(v/1000, 0)
+	}
+	return time.Unix(v, 0)
 }
