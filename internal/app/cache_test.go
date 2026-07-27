@@ -29,6 +29,18 @@ func TestCache_ReplaceAllAndSnapshot(t *testing.T) {
 	}
 }
 
+func TestCache_ReplaceAllInputIndependence(t *testing.T) {
+	c := NewCache()
+	in := []domain.ProviderUsage{newUsage("a", 1, false)}
+	c.ReplaceAll(in)
+	in[0].AccountID = "mutated" // caller mutates its own slice after handoff
+	in = append(in, newUsage("x", 9, false))
+	got := c.Snapshot()
+	if got[0].AccountID != "a" || len(got) != 1 {
+		t.Fatalf("ReplaceAll should own an independent copy: %+v", got)
+	}
+}
+
 func TestCache_SnapshotIndependence(t *testing.T) {
 	c := NewCache()
 	c.ReplaceAll([]domain.ProviderUsage{newUsage("a", 10, false)})

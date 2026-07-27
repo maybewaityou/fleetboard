@@ -33,6 +33,7 @@ func NewCache() *Cache { return &Cache{} }
 
 // ReplaceAll 替换整个数据集（R / boot / CRUD 后用）。拷贝入参 slice，
 // 使 cache 持有独立副本——caller 传入后可安全保留或修改原 slice。
+// 注意仅做一层浅拷贝：嵌套的 Dimensions 等切片/指针与 caller 共享，需按只读对待。
 func (c *Cache) ReplaceAll(usages []domain.ProviderUsage) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -42,6 +43,7 @@ func (c *Cache) ReplaceAll(usages []domain.ProviderUsage) {
 
 // Snapshot 返回当前数据集的浅拷贝；调用方独占返回切片，
 // 后台 tick 不会改动 TUI 正在绘制的快照。
+// 注意仅做一层浅拷贝：嵌套的 Dimensions 等切片/指针与 cache 共享，需按只读对待。
 func (c *Cache) Snapshot() []domain.ProviderUsage {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -63,7 +65,7 @@ func (c *Cache) UpdateOne(u domain.ProviderUsage) {
 	c.current = append(c.current, u)
 }
 
-// SetPinned 翻转 id 的 Pinned，不重新拉取（仅元数据变更）。
+// SetPinned 设置 id 的 Pinned，不重新拉取（仅元数据变更）。
 func (c *Cache) SetPinned(id string, pinned bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
