@@ -20,10 +20,11 @@ import (
 )
 
 // StatusBar is the centered keybinding hint line at the bottom of the screen.
-// It surfaces the two refresh actions distinctly: r refreshes the selected
-// account only, R refreshes every account. Per the task-8 brief, the footer
-// never shows a "last refreshed" timestamp — that information lives on the
-// details pane's "拉取" line instead, so the footer stays a pure key legend.
+// It advertises only the highest-frequency keys; low-frequency actions (Pin,
+// Sort, Refresh All, focus cycling) live behind ? Help (see keybindings.go, the
+// single source of truth the Help panel renders). Per the task-8 brief, the
+// footer never shows a "last refreshed" timestamp — that information lives on
+// the details pane's "拉取" line instead, so the footer stays a pure key legend.
 type StatusBar struct {
 	*tview.TextView
 }
@@ -45,31 +46,30 @@ func (s *StatusBar) SetStatus(msg string) { s.SetText(msg) }
 func (s *StatusBar) ResetHints() { s.SetText(defaultHints()) }
 
 // defaultHints is the footer legend. Keys are cyan, items separated by "•", and
-// the whole line is centered by the TextView's text alignment. The two refresh
-// keys are intentionally adjacent so users can compare them at a glance.
+// the whole line is centered by the TextView's text alignment. Only the
+// highest-frequency keys are shown; the rest (Pin/Sort/Refresh All/focus) are
+// discoverable via ? Help — a "keep the line short by design" strategy ported
+// from lazytmux, which never needed width-based truncation as a result.
 func defaultHints() string {
 	k := colorCyan
 	return "[" + k + "]↑↓[-] Navigate  • " +
-		"[" + k + "]←/→[-] Focus  • " +
 		"[" + k + "]a[-] New  • " +
 		"[" + k + "]e[-] Edit  • " +
 		"[" + k + "]d[-] Delete  • " +
-		"[" + k + "]p[-] Pin  • " +
 		"[" + k + "]r[-] Refresh  • " + // refresh selected account
-		"[" + k + "]R[-] Refresh All  • " + // refresh every account
 		"[" + k + "]/[-] Search  • " +
-		"[" + k + "]s[-] Sort  • " +
 		"[" + k + "]?[-] Help  • " +
 		"[" + k + "]q[-] Quit"
 }
 
 // emptyHints is the minimal footer for the no-accounts state: only the keys
-// that still do something meaningful plus a lead-in label.
+// that still do something meaningful plus a lead-in label. R (refresh all) is
+// omitted — re-fetching an empty config is a no-op, and the boot loading screen
+// already covered the initial fetch.
 func emptyHints() string {
 	k := colorCyan
 	return "[" + k + "]No accounts[-]  •  " +
 		"[" + k + "]a[-] New  •  " +
-		"[" + k + "]R[-] Refresh All  •  " +
 		"[" + k + "]?[-] Help  •  " +
 		"[" + k + "]q[-] Quit"
 }
