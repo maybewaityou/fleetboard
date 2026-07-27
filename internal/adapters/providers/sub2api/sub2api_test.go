@@ -135,6 +135,10 @@ func TestFetchUsage_SubscriptionMode(t *testing.T) {
 	if u.PlanLevel != "Weekly plan" {
 		t.Errorf("PlanLevel = %q, want Weekly plan", u.PlanLevel)
 	}
+	// 订阅模式的 expires_at 在 subscription.expires_at，顶层无；适配器必须透传过来。
+	if u.ExpiresAt == nil {
+		t.Error("subscription mode: ExpiresAt = nil, want subscription.expires_at (2026-12-31T00:00:00Z)")
+	}
 }
 
 func TestFetchUsage_NegativeBalance(t *testing.T) {

@@ -208,9 +208,14 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 	u.Primary = &u.Dimensions[0]
 	u.PlanLevel = r.PlanName
 	u.APIKeyStatus = r.Status
-	if r.ExpiresAt != nil {
+	// expires_at：quota_limited 在顶层（API-key 过期）；订阅模式在 subscription.expires_at（顶层无此字段）。
+	switch {
+	case r.ExpiresAt != nil:
 		u.ExpiresAt = r.ExpiresAt
+	case r.Subscription != nil && r.Subscription.ExpiresAt != nil:
+		u.ExpiresAt = r.Subscription.ExpiresAt
 	}
+	// days_until_expiry 仅 quota_limited 顶层存在，订阅模式不填。
 	if r.DaysUntilExpiry != nil {
 		u.DaysUntilExpiry = *r.DaysUntilExpiry
 	}
