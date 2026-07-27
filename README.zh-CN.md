@@ -79,12 +79,24 @@ accounts:
     provider: kimi
     label: Kimi
     token_env: MOONSHOT_API_KEY
+  - id: newapi-main
+    provider: newapi
+    base_url: https://your-newapi.example.com
+    access_token_env: NEWAPI_AT   # 存 access_token 的环境变量
+    user_id: "16002"              # new-api 用户 ID
 refresh:
   on_start: true
   interval: 5m
 ui:
   theme: tokyo-night
 ```
+
+**获取 access_token 与 user_id**：
+- access_token：new-api 后台 → 个人设置 → 系统访问令牌 → 生成。
+- user_id：浏览器 F12 → Network → 任一 `/api/` 请求的 `New-Api-User` 请求头，或 Local Storage 的 `user.id`。
+
+> 注：new-api 的 OpenAI 兼容 billing 端点（`/v1/dashboard/billing/*`）返回的是占位假数据，
+> fleetboard 改用原生 `/api/*` 层获取真实余额与近 7/30 天消耗。
 
 导出账号引用的 token 环境变量，然后运行 `fleetboard`。
 

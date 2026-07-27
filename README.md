@@ -80,12 +80,23 @@ accounts:
     provider: kimi
     label: Kimi
     token_env: MOONSHOT_API_KEY
+  - id: newapi-main
+    provider: newapi
+    base_url: https://your-newapi.example.com
+    access_token_env: NEWAPI_AT   # Access token from new-api
+    user_id: "16002"              # new-api user ID
 refresh:
   on_start: true
   interval: 5m
 ui:
   theme: tokyo-night
 ```
+
+**Getting `access_token` and `user_id`**:
+- `access_token`: Go to new-api backend → Settings → System Access Token → Generate.
+- `user_id`: In browser, open F12 → Network → Any `/api/*` request's `New-Api-User` header, or `localStorage.getItem('user.id')`.
+
+> **Note:** new-api's OpenAI-compatible billing endpoints (`/v1/dashboard/billing/*`) return fake placeholder data. fleetboard uses the native `/api/*` layer to fetch real balance and recent 7d/30d usage.
 
 Export the tokens the accounts reference, then run `fleetboard`.
 
