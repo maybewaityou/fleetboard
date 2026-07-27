@@ -20,7 +20,7 @@ import "testing"
 // 在 SelectPrimary 中被跳过（配额型行为不受影响）。
 func TestUsageDimensionBalanceFields(t *testing.T) {
 	dim := UsageDimension{
-		Name:        "可用余额",
+		Name:        "Available balance",
 		Balance:     49.58,
 		Currency:    "CNY",
 		PercentUsed: -1,
@@ -33,7 +33,7 @@ func TestUsageDimensionBalanceFields(t *testing.T) {
 	}
 
 	// SelectPrimary 跳过 PercentUsed<0 的维度：纯余额型维度集合 → Primary 为 nil
-	u := VendorUsage{Dimensions: []UsageDimension{dim}}
+	u := ProviderUsage{Dimensions: []UsageDimension{dim}}
 	u.SelectPrimary()
 	if u.Primary != nil {
 		t.Errorf("SelectPrimary should skip PercentUsed<0 balance dim, got Primary=%+v", u.Primary)

@@ -27,14 +27,14 @@ import (
 )
 
 // AccountList wraps tview.List and keeps the slice of usages behind it so a
-// selection index can be resolved back to a domain.VendorUsage. It is the
+// selection index can be resolved back to a domain.ProviderUsage. It is the
 // fleetboard analogue of lazytmux's SessionList, but each row is a single line
-// (no mini progress bar) carrying: label, vendor tag, primary percent, status
+// (no mini progress bar) carrying: label, provider tag, primary percent, status
 // dot. See formatAccountLine for the exact row grammar.
 type AccountList struct {
 	*tview.List
-	usages            []domain.VendorUsage
-	onSelectionChange func(domain.VendorUsage)
+	usages            []domain.ProviderUsage
+	onSelectionChange func(domain.ProviderUsage)
 	onReturnToSearch  func()
 }
 
@@ -81,7 +81,7 @@ func (al *AccountList) build() {
 // UpdateUsages re-renders the list. The cursor is reset to the first item, so a
 // refresh-driven caller should follow up with SelectByAccountID to preserve the
 // user's selection (same flow as lazytmux's UpdateSessions + SelectByName).
-func (al *AccountList) UpdateUsages(usages []domain.VendorUsage) {
+func (al *AccountList) UpdateUsages(usages []domain.ProviderUsage) {
 	al.usages = usages
 	al.List.Clear()
 	for i := range usages {
@@ -92,13 +92,13 @@ func (al *AccountList) UpdateUsages(usages []domain.VendorUsage) {
 	}
 }
 
-// GetSelected resolves the current cursor position to its VendorUsage.
-func (al *AccountList) GetSelected() (domain.VendorUsage, bool) {
+// GetSelected resolves the current cursor position to its ProviderUsage.
+func (al *AccountList) GetSelected() (domain.ProviderUsage, bool) {
 	idx := al.List.GetCurrentItem()
 	if idx >= 0 && idx < len(al.usages) {
 		return al.usages[idx], true
 	}
-	return domain.VendorUsage{}, false
+	return domain.ProviderUsage{}, false
 }
 
 // SelectByAccountID moves the cursor to the first usage with the given account
@@ -113,7 +113,7 @@ func (al *AccountList) SelectByAccountID(id string) {
 	}
 }
 
-func (al *AccountList) OnSelectionChange(fn func(domain.VendorUsage)) *AccountList {
+func (al *AccountList) OnSelectionChange(fn func(domain.ProviderUsage)) *AccountList {
 	al.onSelectionChange = fn
 	return al
 }
@@ -123,51 +123,77 @@ func (al *AccountList) OnReturnToSearch(fn func()) *AccountList {
 	return al
 }
 
-// primaryPercent returns Primary.PercentUsed, or -1 when there is no primary
-// dimension (N/A). -1 is the sentinel StatusColor reads as "gray", so the list
-// dot and details bar both degrade consistently for accounts with no usable
-// data.
-func primaryPercent(u domain.VendorUsage) float64 {
-	if u.Primary == nil {
-		return -1
+// SetSortTitle writes the active sort mode into the list border title.
+func (al *AccountList) SetSortTitle(mode string) {
+	al.List.SetTitle(" Accounts — Sort: " + mode + " ")
+}
+
+// displayDimension returns the dimension shown in the list: the one with the
+// soonest non-zero ResetsAt (the nearest reset window — "最近时间"), falling back
+// to Primary when no dimension carries a reset time (balance providers such as
+// kimi/deepseek), then nil. -1 from PercentUsed is the sentinel StatusColor
+// reads as "gray", so the list dot and details bar degrade consistently.
+func displayDimension(u domain.ProviderUsage) *domain.UsageDimension {
+	var nearest *domain.UsageDimension
+	for i := range u.Dimensions {
+		d := &u.Dimensions[i]
+		if d.ResetsAt.IsZero() {
+			continue
+		}
+		if nearest == nil || d.ResetsAt.Before(nearest.ResetsAt) {
+			nearest = d
+		}
 	}
-	return u.Primary.PercentUsed
+	if nearest != nil {
+		return nearest
+	}
+	return u.Primary
+}
+
+// displayPercent is the usage key shared by the list dot/bar and the Usage-sort
+// mode: the displayed dimension's PercentUsed, or -1 (N/A) when there is none.
+func displayPercent(u domain.ProviderUsage) float64 {
+	if d := displayDimension(u); d != nil {
+		return d.PercentUsed
+	}
+	return -1
 }
 
 // formatAccountLine renders one aligned list row. Every column has a fixed
 // DISPLAY width so the progress bar, the value, the status dot and the
 // "Last Refreshed" text each start on the same column across all rows:
 //
-//	<pin2> <icon> <label pad16> <vendor pad9> <miniBar4> <pct 左对齐7> <dot>    <lastRefreshed>
+//	<pin2> <icon> <label pad16> <provider pad9> <miniBar4> <pct 左对齐7> <dot>    <lastRefreshed>
 //
-// icon = vendor 首字母(品牌色). label/vendor/pct 均用 padDisplay (CJK 显示宽度对齐):
+// icon = provider 首字母(品牌色). label/provider/pct 均用 padDisplay (CJK 显示宽度对齐):
 // pct 左对齐紧贴进度条 (用量数值与进度条语义连贯), 列宽固定 7 使右边界不变, 状态点仍对齐.
 // fetched 是相对时间 (humanizeAgo).
-func formatAccountLine(u domain.VendorUsage) string {
+func formatAccountLine(u domain.ProviderUsage) string {
+	d := displayDimension(u)
 	pctStr, dot := "N/A", "○"
 	dotCol := colorGray // N/A 默认灰点
-	if u.Primary != nil && u.Primary.Currency != "" {
+	if d != nil && d.Currency != "" {
 		// 余额型：显示余额 + 绿/红点（按余额正负）
-		pctStr = formatMoneyShort(u.Primary.Balance, u.Primary.Currency)
+		pctStr = formatMoneyShort(d.Balance, d.Currency)
 		dot = "●"
-		if u.Primary.Balance > 0 {
+		if d.Balance > 0 {
 			dotCol = colorGreen
 		} else {
 			dotCol = colorRed
 		}
-	} else if u.Primary != nil {
+	} else if d != nil {
 		// 配额型：百分比 + StatusColor
-		pctStr = fmt.Sprintf("%d%%", int(u.Primary.PercentUsed))
+		pctStr = fmt.Sprintf("%d%%", int(d.PercentUsed))
 		dot = "●"
-		dotCol = StatusColor(u.Primary.PercentUsed)
+		dotCol = StatusColor(d.PercentUsed)
 	}
-	pct := primaryPercent(u) // 余额型 PercentUsed=-1 → renderBar(-1,4) 自然灰条
+	pct := displayPercent(u) // 余额型 PercentUsed=-1 → renderBar(-1,4) 自然灰条
 
-	// icon: vendor 首字母大写, 品牌色（VendorTag 的 fg）。
-	_, iconFg := VendorTag(u.Vendor)
+	// icon: provider 首字母大写, 品牌色（ProviderTag 的 fg）。
+	_, iconFg := ProviderTag(u.Provider)
 	icon := "?"
-	if u.Vendor != "" {
-		icon = strings.ToUpper(u.Vendor[:1])
+	if u.Provider != "" {
+		icon = strings.ToUpper(u.Provider[:1])
 	}
 
 	label := u.Label
@@ -184,15 +210,15 @@ func formatAccountLine(u domain.VendorUsage) string {
 	fetched := humanizeAgo(u.FetchedAt)
 
 	// 列布局（每列固定显示宽度 → 进度条/数值/状态点/时间跨行严格对齐）：
-	//   pin(2) icon(1) sp | label pad16 | sp | vendorChip(pad9) | 2sp | miniBar(4) sp | pctStr 左对齐7 | sp dot | 4sp | Last Refreshed: fetched
-	// 对齐要点：① vendor pad 到 9 覆盖最长 slug "anthropic"，否则 anthropic/deepseek 行整条右半部右移；
+	//   pin(2) icon(1) sp | label pad16 | sp | providerChip(pad9) | 2sp | miniBar(4) sp | pctStr 左对齐7 | sp dot | 4sp | Last Refreshed: fetched
+	// 对齐要点：① provider pad 到 9 覆盖最长 slug "anthropic"，否则 anthropic/deepseek 行整条右半部右移；
 	//          ② pctStr 紧贴 miniBar 左对齐（padDisplay 到 7）：数值与进度条语义连贯（都是用量），
 	//            同时列宽固定 7 → 右边界不变 → 紧跟的状态点 ● 仍落在同一列；miniBar(4) 本身定宽。
 	return fmt.Sprintf("%s [%s]%s[-] %s [black:%s] %s [-:-:-]  %s [%s]%s[-] [%s]%s[-]    [%s]Last Refreshed: %s[-]",
 		pin,
 		iconFg, icon,
 		padDisplay(label, 16),
-		colorAccent, padDisplay(u.Vendor, 9),
+		colorAccent, padDisplay(u.Provider, 9),
 		renderBar(pct, 4),
 		colorPrimary, padDisplay(pctStr, 7),
 		dotCol, dot,

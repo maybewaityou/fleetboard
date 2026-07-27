@@ -42,7 +42,7 @@ const (
 	httpTimeout    = 10 * time.Second
 
 	sourceTag     = "api-balanced"
-	nameAvailable = "可用余额"
+	nameAvailable = "Available balance"
 )
 
 var _ ports.UsageProvider = (*Provider)(nil)
@@ -57,8 +57,8 @@ func New() *Provider {
 	return &Provider{hc: &http.Client{Timeout: httpTimeout}}
 }
 
-// Vendor 返回厂商标识。
-func (p *Provider) Vendor() string { return "deepseek" }
+// Provider 返回厂商标识。
+func (p *Provider) Provider() string { return "deepseek" }
 
 // apiResp 是 DeepSeek /user/balance 响应结构。金额字段为 string。
 type apiResp struct {
@@ -74,12 +74,12 @@ type balanceInfo struct {
 	ToppedUpBalance string `json:"topped_up_balance"`
 }
 
-// FetchUsage 拉取该账号余额，返回单维度余额型 VendorUsage。
-// 出错时 VendorUsage 仍被填充（账号字段 + FetchedAt + Err）。
-func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.VendorUsage, error) {
-	u := domain.VendorUsage{
+// FetchUsage 拉取该账号余额，返回单维度余额型 ProviderUsage。
+// 出错时 ProviderUsage 仍被填充（账号字段 + FetchedAt + Err）。
+func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.ProviderUsage, error) {
+	u := domain.ProviderUsage{
 		AccountID: acc.ID,
-		Vendor:    "deepseek",
+		Provider:  "deepseek",
 		Label:     acc.Label,
 		FetchedAt: time.Now(),
 	}

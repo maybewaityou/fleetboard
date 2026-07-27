@@ -24,7 +24,7 @@
 //
 // Tokens never enter main: each provider reads its own token from the env var
 // named by the account's TokenEnv field. Errors from FetchAll/FetchOne are
-// passed through untouched in VendorUsage.Err — the UI marks the row red but
+// passed through untouched in ProviderUsage.Err — the UI marks the row red but
 // still renders whatever dimensions the provider returned.
 package main
 
@@ -118,17 +118,17 @@ func run(sugar *zap.SugaredLogger) error {
 	cache := &usageCache{}
 
 	// Initial data: fetch every configured account so the first frame already
-	// shows live usage. Per-account errors land in VendorUsage.Err and are passed
+	// shows live usage. Per-account errors land in ProviderUsage.Err and are passed
 	// through untouched (task-7 err-transparency contract).
 	initial := agg.FetchAll(ctx, cfg.Accounts)
 	cache.replaceAll(initial)
 
-	refreshAll := func() []domain.VendorUsage {
+	refreshAll := func() []domain.ProviderUsage {
 		usages := agg.FetchAll(ctx, cfg.Accounts)
 		cache.replaceAll(usages)
 		return cache.snapshot()
 	}
-	refreshSelected := func(accountID string) []domain.VendorUsage {
+	refreshSelected := func(accountID string) []domain.ProviderUsage {
 		acc, ok := findAccount(cfg.Accounts, accountID)
 		if !ok {
 			// Selection points at an account no longer in config (or is empty on
@@ -142,7 +142,7 @@ func run(sugar *zap.SugaredLogger) error {
 
 	// CRUD 回调（a/e/d）：mutate cfg.Accounts → store.Save → refreshAll。
 	// cfg 是闭包按引用捕获的局部变量，append/remove/edit 后 refreshAll 下次读到新 Accounts。
-	onSaveAccount := func(acc domain.Account) []domain.VendorUsage {
+	onSaveAccount := func(acc domain.Account) []domain.ProviderUsage {
 		acc.ID = domain.GenerateAccountID() // ID 自动生成，不由用户/表单提供
 		cfg.Accounts = append(cfg.Accounts, acc)
 		if err := store.Save(cfg); err != nil {
@@ -150,14 +150,14 @@ func run(sugar *zap.SugaredLogger) error {
 		}
 		return refreshAll()
 	}
-	onDeleteAccount := func(id string) []domain.VendorUsage {
+	onDeleteAccount := func(id string) []domain.ProviderUsage {
 		cfg.Accounts = removeAccount(cfg.Accounts, id)
 		if err := store.Save(cfg); err != nil {
 			sugar.Warnw("save config (delete) failed", "error", err)
 		}
 		return refreshAll()
 	}
-	onEditAccount := func(id string, acc domain.Account) []domain.VendorUsage {
+	onEditAccount := func(id string, acc domain.Account) []domain.ProviderUsage {
 		for i := range cfg.Accounts {
 			if cfg.Accounts[i].ID == id {
 				acc.ID = id // 保留原 ID（form 提交的 ID 可能被改动）
@@ -173,7 +173,7 @@ func run(sugar *zap.SugaredLogger) error {
 	onLoadAccount := func(id string) (domain.Account, bool) {
 		return findAccount(cfg.Accounts, id)
 	}
-	onTogglePin := func(id string) []domain.VendorUsage {
+	onTogglePin := func(id string) []domain.ProviderUsage {
 		pinned := false
 		for i := range cfg.Accounts {
 			if cfg.Accounts[i].ID == id {
@@ -220,12 +220,12 @@ func run(sugar *zap.SugaredLogger) error {
 // refresher. The mutex makes every accessor safe to call from any goroutine.
 type usageCache struct {
 	mu      sync.Mutex
-	current []domain.VendorUsage
+	current []domain.ProviderUsage
 }
 
 // replaceAll swaps the cached dataset. Callers must not retain aliases into the
 // slice they hand over (snapshot returns a copy for that).
-func (c *usageCache) replaceAll(usages []domain.VendorUsage) {
+func (c *usageCache) replaceAll(usages []domain.ProviderUsage) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.current = usages
@@ -235,10 +235,10 @@ func (c *usageCache) replaceAll(usages []domain.VendorUsage) {
 // returned slice — mutating it does not affect the cache, which matters because
 // the TUI's Render hands it to queueDraw and a later tick must not mutate what
 // the main loop is still painting.
-func (c *usageCache) snapshot() []domain.VendorUsage {
+func (c *usageCache) snapshot() []domain.ProviderUsage {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	out := make([]domain.VendorUsage, len(c.current))
+	out := make([]domain.ProviderUsage, len(c.current))
 	copy(out, c.current)
 	return out
 }
@@ -246,7 +246,7 @@ func (c *usageCache) snapshot() []domain.VendorUsage {
 // updateOne replaces the cache entry whose AccountID matches u.AccountID, or
 // appends u when no such entry exists. Used by refresh-selected to fold a single
 // FetchOne result back into the full dataset without disturbing the others.
-func (c *usageCache) updateOne(u domain.VendorUsage) {
+func (c *usageCache) updateOne(u domain.ProviderUsage) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for i := range c.current {
@@ -276,7 +276,7 @@ func (c *usageCache) setPinned(id string, pinned bool) {
 }
 
 // findAccount resolves an AccountID back to its full config (FetchOne needs the
-// vendor/token_env/base_url fields, not just the id).
+// provider/token_env/base_url fields, not just the id).
 func findAccount(accs []domain.Account, id string) (domain.Account, bool) {
 	for _, a := range accs {
 		if a.ID == id {

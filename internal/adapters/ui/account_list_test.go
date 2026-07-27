@@ -26,12 +26,12 @@ import (
 )
 
 // TestFormatAccountLine_WithPrimary verifies the row carries the label, a
-// vendor chip on the GLM brand color, the integer percent, and a solid status
+// provider chip on the GLM brand color, the integer percent, and a solid status
 // dot colored by StatusColor (green at 30%).
 func TestFormatAccountLine_WithPrimary(t *testing.T) {
-	u := domain.VendorUsage{
+	u := domain.ProviderUsage{
 		AccountID: "a1",
-		Vendor:    "glm",
+		Provider:  "glm",
 		Label:     "prod-glm",
 		Primary: &domain.UsageDimension{
 			Name:        "GLM-4.5",
@@ -46,12 +46,12 @@ func TestFormatAccountLine_WithPrimary(t *testing.T) {
 	if !strings.Contains(got, "prod-glm") {
 		t.Errorf("missing label %q in: %q", "prod-glm", got)
 	}
-	// vendor chip: unified accent background (lazytmux tagChip style), black text
+	// provider chip: unified accent background (lazytmux tagChip style), black text
 	if !strings.Contains(got, "[black:"+colorAccent+"]") {
-		t.Errorf("missing vendor chip [black:%s] in: %q", colorAccent, got)
+		t.Errorf("missing provider chip [black:%s] in: %q", colorAccent, got)
 	}
 	if !strings.Contains(got, "glm") {
-		t.Errorf("missing vendor text in: %q", got)
+		t.Errorf("missing provider text in: %q", got)
 	}
 	// integer percent
 	if !strings.Contains(got, "30%") {
@@ -79,9 +79,9 @@ func TestFormatAccountLine_WithPrimary(t *testing.T) {
 // the dot is the hollow ○, and its color is StatusColor(-1) (gray) so the dim
 // state reads distinctly from a healthy account.
 func TestFormatAccountLine_NoPrimary(t *testing.T) {
-	u := domain.VendorUsage{
+	u := domain.ProviderUsage{
 		AccountID: "a2",
-		Vendor:    "kimi",
+		Provider:  "kimi",
 		Label:     "dev-kimi",
 		Primary:   nil, // no usable dimension
 	}
@@ -100,13 +100,13 @@ func TestFormatAccountLine_NoPrimary(t *testing.T) {
 }
 
 // TestFormatAccountLine_ErrMarker verifies the err-transparency contract
-// (task-7): a failed fetch prefixes a red ⚠ but still renders label/vendor so
+// (task-7): a failed fetch prefixes a red ⚠ but still renders label/provider so
 // the account is not hidden — its existing dimensions remain explorable in the
 // details pane.
 func TestFormatAccountLine_ErrMarker(t *testing.T) {
-	u := domain.VendorUsage{
+	u := domain.ProviderUsage{
 		AccountID: "a3",
-		Vendor:    "openai",
+		Provider:  "openai",
 		Label:     "broken",
 		Primary: &domain.UsageDimension{
 			Name:        "gpt-4",
@@ -127,26 +127,26 @@ func TestFormatAccountLine_ErrMarker(t *testing.T) {
 	}
 }
 
-// TestFormatAccountLine_UnknownVendor verifies an unrecognized vendor falls back
-// to the gray tag (VendorTag contract) rather than a broken color block.
-func TestFormatAccountLine_UnknownVendor(t *testing.T) {
-	u := domain.VendorUsage{
+// TestFormatAccountLine_UnknownProvider verifies an unrecognized provider falls back
+// to the gray tag (ProviderTag contract) rather than a broken color block.
+func TestFormatAccountLine_UnknownProvider(t *testing.T) {
+	u := domain.ProviderUsage{
 		AccountID: "a4",
-		Vendor:    "weird-vendor",
+		Provider:  "weird-provider",
 		Label:     "x",
 		Primary:   &domain.UsageDimension{PercentUsed: 10},
 	}
 	got := formatAccountLine(u)
-	// vendor chip is unified accent regardless of vendor identity
+	// provider chip is unified accent regardless of provider identity
 	if !strings.Contains(got, "[black:"+colorAccent+"]") {
-		t.Errorf("vendor chip must be unified accent [black:%s]: %q", colorAccent, got)
+		t.Errorf("provider chip must be unified accent [black:%s]: %q", colorAccent, got)
 	}
 }
 
 // TestFormatAccountLine_Pinned 验证置顶行首显示绿色 📌 marker；未置顶则无 📌。
 func TestFormatAccountLine_Pinned(t *testing.T) {
-	u := domain.VendorUsage{
-		AccountID: "p1", Vendor: "glm", Label: "pinned-acct",
+	u := domain.ProviderUsage{
+		AccountID: "p1", Provider: "glm", Label: "pinned-acct",
 		Primary: &domain.UsageDimension{PercentUsed: 50},
 		Pinned:  true,
 	}
@@ -163,8 +163,8 @@ func TestFormatAccountLine_Pinned(t *testing.T) {
 
 // TestFormatAccountLine_FetchedTime 验证行尾显示最近刷新相对时间（Xm ago）。
 func TestFormatAccountLine_FetchedTime(t *testing.T) {
-	u := domain.VendorUsage{
-		AccountID: "a", Vendor: "glm", Label: "l",
+	u := domain.ProviderUsage{
+		AccountID: "a", Provider: "glm", Label: "l",
 		Primary:   &domain.UsageDimension{PercentUsed: 50},
 		FetchedAt: time.Now().Add(-5 * time.Minute),
 	}
@@ -175,16 +175,16 @@ func TestFormatAccountLine_FetchedTime(t *testing.T) {
 }
 
 // TestFormatAccountLine_ColumnAlignment 守护跨行对齐不变量：进度条起点、状态点、
-// "Last Refreshed" 文本起点必须在所有行落在同一列，无论 vendor slug 长短、数值是百分比
+// "Last Refreshed" 文本起点必须在所有行落在同一列，无论 provider slug 长短、数值是百分比
 // 还是余额、正负、或 N/A。挡住两类旧回归：① %-Ns 左对齐让状态点随数值长度漂移；
-// ② 长 vendor (anthropic/deepseek) 超出定宽把整条右半部右移。
+// ② 长 provider (anthropic/deepseek) 超出定宽把整条右半部右移。
 func TestFormatAccountLine_ColumnAlignment(t *testing.T) {
-	cases := []domain.VendorUsage{
-		{AccountID: "1", Vendor: "glm", Label: "short", Primary: &domain.UsageDimension{PercentUsed: 7}},
-		{AccountID: "2", Vendor: "anthropic", Label: "longer-label", Primary: &domain.UsageDimension{Balance: 49.6, Currency: "CNY", PercentUsed: -1}},
-		{AccountID: "3", Vendor: "deepseek", Label: "x", Primary: &domain.UsageDimension{Balance: -1500, Currency: "USD", PercentUsed: -1}},
-		{AccountID: "4", Vendor: "openai", Label: "y", Primary: &domain.UsageDimension{PercentUsed: 100}},
-		{AccountID: "5", Vendor: "kimi", Label: "z", Primary: nil}, // N/A → 灰条 + ○
+	cases := []domain.ProviderUsage{
+		{AccountID: "1", Provider: "glm", Label: "short", Primary: &domain.UsageDimension{PercentUsed: 7}},
+		{AccountID: "2", Provider: "anthropic", Label: "longer-label", Primary: &domain.UsageDimension{Balance: 49.6, Currency: "CNY", PercentUsed: -1}},
+		{AccountID: "3", Provider: "deepseek", Label: "x", Primary: &domain.UsageDimension{Balance: -1500, Currency: "USD", PercentUsed: -1}},
+		{AccountID: "4", Provider: "openai", Label: "y", Primary: &domain.UsageDimension{PercentUsed: 100}},
+		{AccountID: "5", Provider: "kimi", Label: "z", Primary: nil}, // N/A → 灰条 + ○
 	}
 	// 度量用"显示列"（tview.TaggedStringWidth）而非 byte/rune 索引：pctStr 列含
 	// 多字节货币符号 ¥（2 byte 但显示宽 1），padDisplay 按显示宽度补齐，所以只有
@@ -258,14 +258,14 @@ func TestPadDisplay_CJKAlignsByDisplayWidth(t *testing.T) {
 	}
 }
 
-// TestPrimaryPercent covers the helper that StatusColor feeds on: nil → -1,
-// otherwise the dimension's percent.
-func TestPrimaryPercent(t *testing.T) {
-	if got := primaryPercent(domain.VendorUsage{}); got != -1 {
-		t.Errorf("nil Primary = %v, want -1", got)
+// TestDisplayPercent covers the helper that StatusColor feeds on: no usable
+// dimension → -1, otherwise the displayed dimension's percent.
+func TestDisplayPercent(t *testing.T) {
+	if got := displayPercent(domain.ProviderUsage{}); got != -1 {
+		t.Errorf("nil = %v, want -1", got)
 	}
-	u := domain.VendorUsage{Primary: &domain.UsageDimension{PercentUsed: 42.5}}
-	if got := primaryPercent(u); got != 42.5 {
+	u := domain.ProviderUsage{Primary: &domain.UsageDimension{PercentUsed: 42.5}}
+	if got := displayPercent(u); got != 42.5 {
 		t.Errorf("Primary.PercentUsed = %v, want 42.5", got)
 	}
 }
@@ -274,10 +274,10 @@ func TestPrimaryPercent(t *testing.T) {
 // UpdateUsages (the pattern Run/Render uses to keep the user's cursor stable).
 func TestSelectByAccountID(t *testing.T) {
 	al := NewAccountList()
-	al.UpdateUsages([]domain.VendorUsage{
-		{AccountID: "a1", Vendor: "glm", Label: "one"},
-		{AccountID: "a2", Vendor: "glm", Label: "two"},
-		{AccountID: "a3", Vendor: "glm", Label: "three"},
+	al.UpdateUsages([]domain.ProviderUsage{
+		{AccountID: "a1", Provider: "glm", Label: "one"},
+		{AccountID: "a2", Provider: "glm", Label: "two"},
+		{AccountID: "a3", Provider: "glm", Label: "three"},
 	})
 	if got := al.GetCurrentItem(); got != 0 {
 		t.Fatalf("initial cursor = %d, want 0", got)
@@ -368,8 +368,8 @@ func TestFormatMoneyShort(t *testing.T) {
 // TestFormatAccountLineBalance 验证余额型行渲染：含余额短格式、绿点（余额>0）、
 // 灰色 miniBar（renderBar(-1,4) 自然得灰条）。
 func TestFormatAccountLineBalance(t *testing.T) {
-	balDim := domain.UsageDimension{Name: "可用余额", Balance: 49.58894, Currency: "CNY", PercentUsed: -1}
-	u := domain.VendorUsage{AccountID: "k", Vendor: "kimi", Label: "Kimi-主力", Primary: &balDim, Dimensions: []domain.UsageDimension{balDim}}
+	balDim := domain.UsageDimension{Name: "Available balance", Balance: 49.58894, Currency: "CNY", PercentUsed: -1}
+	u := domain.ProviderUsage{AccountID: "k", Provider: "kimi", Label: "Kimi-主力", Primary: &balDim, Dimensions: []domain.UsageDimension{balDim}}
 	got := formatAccountLine(u)
 
 	if !strings.Contains(got, "¥49.6") {
@@ -385,8 +385,8 @@ func TestFormatAccountLineBalance(t *testing.T) {
 
 // TestFormatAccountLineBalanceDepleted 验证余额<=0 渲染红点。
 func TestFormatAccountLineBalanceDepleted(t *testing.T) {
-	balDim := domain.UsageDimension{Name: "可用余额", Balance: 0, Currency: "CNY", PercentUsed: -1}
-	u := domain.VendorUsage{AccountID: "d", Vendor: "deepseek", Label: "DS", Primary: &balDim}
+	balDim := domain.UsageDimension{Name: "Available balance", Balance: 0, Currency: "CNY", PercentUsed: -1}
+	u := domain.ProviderUsage{AccountID: "d", Provider: "deepseek", Label: "DS", Primary: &balDim}
 	got := formatAccountLine(u)
 	if !strings.Contains(got, "["+colorRed+"]") {
 		t.Errorf("balance<=0 should render red dot, got: %q", got)
@@ -399,3 +399,40 @@ var errSentinel = errStr("boom")
 type errStr string
 
 func (e errStr) Error() string { return string(e) }
+
+// TestDisplayDimension_NearestReset verifies the list surfaces the dimension
+// whose ResetsAt is soonest (the nearest reset window), not the max-% one.
+func TestDisplayDimension_NearestReset(t *testing.T) {
+	now := time.Now()
+	weekly := domain.UsageDimension{Name: "Weekly", PercentUsed: 80, ResetsAt: now.Add(7 * 24 * time.Hour)}
+	fiveH := domain.UsageDimension{Name: "5h", PercentUsed: 30, ResetsAt: now.Add(5 * time.Hour)}
+	u := domain.ProviderUsage{
+		Provider:   "glm",
+		Dimensions: []domain.UsageDimension{weekly, fiveH},
+	}
+	d := displayDimension(u)
+	if d.Name != "5h" {
+		t.Errorf("displayDimension = %q, want the soonest-reset \"5h\"", d.Name)
+	}
+	if got := displayPercent(u); got != 30 {
+		t.Errorf("displayPercent = %v, want 30 (5h window), not 80 (weekly)", got)
+	}
+}
+
+// TestDisplayDimension_FallbackPrimary verifies balance providers (no ResetsAt)
+// fall back to Primary so the balance still shows.
+func TestDisplayDimension_FallbackPrimary(t *testing.T) {
+	bal := domain.UsageDimension{Name: "Available balance", Balance: 5, Currency: "CNY", PercentUsed: -1}
+	u := domain.ProviderUsage{
+		Provider:   "kimi",
+		Dimensions: []domain.UsageDimension{bal},
+		Primary:    &bal,
+	}
+	d := displayDimension(u)
+	if d.Name != "Available balance" {
+		t.Errorf("fallback = %q, want Primary", d.Name)
+	}
+	if got := displayPercent(u); got != -1 {
+		t.Errorf("balance displayPercent = %v, want -1", got)
+	}
+}

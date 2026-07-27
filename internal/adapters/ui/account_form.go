@@ -26,19 +26,19 @@ import (
 // onEditAccount 保留原 ID（见 main.go）。Label 是第一个输入字段。
 const (
 	afFieldLabel = iota
-	afFieldVendor
+	afFieldProvider
 	afFieldBaseURL
 	afFieldTokenEnv
 )
 
-// vendorOptions 是 Vendor 下拉的可选项（与 cmd/main 注册的 adapter 对应）。
-var vendorOptions = []string{"glm", "minimax", "kimi", "deepseek"}
+// providerOptions 是 Provider 下拉的可选项（与 cmd/main 注册的 adapter 对应）。
+var providerOptions = []string{"glm", "minimax", "kimi", "deepseek"}
 
 // 各字段 placeholder。
 const (
-	phLabel    = "e.g. 智谱编码-主力"
-	phVendor   = "选择厂商"
-	phBaseURL  = "留空使用默认"
+	phLabel    = "e.g. GLM main"
+	phProvider = "Select provider"
+	phBaseURL  = "leave empty for default"
 	phTokenEnv = "e.g. GLM_API_KEY"
 )
 
@@ -51,7 +51,7 @@ type AccountForm struct {
 	onCancel func()
 }
 
-// NewAccountForm 构造表单。ID 字段不在表单中；Vendor 下拉不预选（强制用户选）。
+// NewAccountForm 构造表单。ID 字段不在表单中；Provider 下拉不预选（强制用户选）。
 func NewAccountForm() *AccountForm {
 	f := &AccountForm{form: tview.NewForm()}
 	f.form.SetBorder(true).
@@ -59,18 +59,18 @@ func NewAccountForm() *AccountForm {
 		SetTitleColor(tcell.GetColor(colorTitle)).
 		SetBorderColor(tcell.GetColor(colorBorder))
 	f.form.AddInputField("Label", "", 0, nil, nil)
-	f.form.AddDropDown("Vendor", vendorOptions, 0, nil)
+	f.form.AddDropDown("Provider", providerOptions, 0, nil)
 	f.form.AddInputField("BaseURL", "", 0, nil, nil)
 	f.form.AddInputField("TokenEnv", "", 0, nil, nil)
 	f.form.SetBorderPadding(0, 0, 1, 1)
 
-	// placeholder：每个字段给提示；Vendor 下拉清空预选（idx=-1 显示 noSelection 文本）。
+	// placeholder：每个字段给提示；Provider 下拉清空预选（idx=-1 显示 noSelection 文本）。
 	// DropDown 无 SetPlaceholder，用 SetTextOptions 的 noSelection 参数作未选时的提示。
-	f.input(afFieldLabel).SetPlaceholder(phLabel)
-	f.vendorDropDown().SetTextOptions("", "", "", "", phVendor)
-	f.vendorDropDown().SetCurrentOption(-1)
-	f.input(afFieldBaseURL).SetPlaceholder(phBaseURL)
-	f.input(afFieldTokenEnv).SetPlaceholder(phTokenEnv)
+	f.input(afFieldLabel).SetPlaceholder(phLabel).SetPlaceholderTextColor(tcell.GetColor(colorSecondary))
+	f.providerDropDown().SetTextOptions("", "", "", "", phProvider)
+	f.providerDropDown().SetCurrentOption(-1)
+	f.input(afFieldBaseURL).SetPlaceholder(phBaseURL).SetPlaceholderTextColor(tcell.GetColor(colorSecondary))
+	f.input(afFieldTokenEnv).SetPlaceholder(phTokenEnv).SetPlaceholderTextColor(tcell.GetColor(colorSecondary))
 
 	f.form.SetInputCapture(func(e *tcell.EventKey) *tcell.EventKey {
 		switch e.Key() {
@@ -80,11 +80,11 @@ func NewAccountForm() *AccountForm {
 			}
 			return nil
 		case tcell.KeyEnter:
-			// 焦点在 Vendor DropDown 时放行 Enter，让 tview 内部确认下拉选项
+			// 焦点在 Provider DropDown 时放行 Enter，让 tview 内部确认下拉选项
 			// （否则 Enter 被全局拦截成 submit，下拉无法选定）。
 			// GetFocusedItemIndex 返回 (formItem, button)，只看 formItem。
 			item, _ := f.form.GetFocusedItemIndex()
-			if item == afFieldVendor {
+			if item == afFieldProvider {
 				return e
 			}
 			f.submit()
@@ -104,9 +104,9 @@ func (f *AccountForm) Form() *tview.Form { return f.form }
 
 // Prefill 用现有账号预填（编辑场景）。不回填 ID（ID 不在表单中）。
 func (f *AccountForm) Prefill(acc domain.Account) {
-	for i, v := range vendorOptions {
-		if v == acc.Vendor {
-			f.vendorDropDown().SetCurrentOption(i)
+	for i, v := range providerOptions {
+		if v == acc.Provider {
+			f.providerDropDown().SetCurrentOption(i)
 		}
 	}
 	f.input(afFieldLabel).SetText(acc.Label)
@@ -114,17 +114,17 @@ func (f *AccountForm) Prefill(acc domain.Account) {
 	f.input(afFieldTokenEnv).SetText(acc.TokenEnv)
 }
 
-// submit 校验并提交。Label/Vendor/TokenEnv 必填；ID 不在此设置
+// submit 校验并提交。Label/Provider/TokenEnv 必填；ID 不在此设置
 // （新增时由 cmd/main 用 domain.GenerateAccountID 生成）。
 func (f *AccountForm) submit() {
 	label := f.text(afFieldLabel)
-	_, vendor := f.vendorDropDown().GetCurrentOption()
-	if label == "" || vendor == "" || f.text(afFieldTokenEnv) == "" {
+	_, provider := f.providerDropDown().GetCurrentOption()
+	if label == "" || provider == "" || f.text(afFieldTokenEnv) == "" {
 		return
 	}
 	if f.onSubmit != nil {
 		f.onSubmit(domain.Account{
-			Vendor:   vendor,
+			Provider: provider,
 			Label:    label,
 			BaseURL:  f.text(afFieldBaseURL),
 			TokenEnv: f.text(afFieldTokenEnv),
@@ -136,8 +136,8 @@ func (f *AccountForm) input(idx int) *tview.InputField {
 	return f.form.GetFormItem(idx).(*tview.InputField)
 }
 
-func (f *AccountForm) vendorDropDown() *tview.DropDown {
-	return f.form.GetFormItem(afFieldVendor).(*tview.DropDown)
+func (f *AccountForm) providerDropDown() *tview.DropDown {
+	return f.form.GetFormItem(afFieldProvider).(*tview.DropDown)
 }
 
 func (f *AccountForm) text(idx int) string {
@@ -149,7 +149,7 @@ func (f *AccountForm) Primitive() tview.Primitive {
 	hint := tview.NewTextView().
 		SetDynamicColors(true).
 		SetTextAlign(tview.AlignCenter).
-		SetText("[" + colorSecondary + "]Enter 提交 · ESC 取消[-]")
+		SetText("[" + colorSecondary + "]Enter submit · ESC cancel[-]")
 	column := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(f.form, 0, 1, true).
 		AddItem(hint, 1, 0, false)

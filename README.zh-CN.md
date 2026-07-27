@@ -1,0 +1,160 @@
+<div align="center">
+
+# fleetboard
+
+**终端里的 AI Coding 套餐额度 / 余额仪表盘。**
+
+一屏聚合 GLM、MiniMax、Kimi、DeepSeek（及更多）的额度与余额——用了多少、何时重置、哪个号还能用。
+
+[English](README.md) · [简体中文](README.zh-CN.md)
+
+</div>
+
+## ✨ 功能
+
+- **一屏看全部厂商** —— 每行一个账号：标签、厂商色块、用量百分比、状态点。
+- **额度 + 余额** —— 百分比窗口（GLM 5 小时 / 每周 / 每月、MiniMax）**与**账户余额（Kimi、DeepSeek）。
+- **最近窗口优先** —— 列表展示重置时间最近的那一档，最紧迫的额度始终可见。
+- **两级刷新** —— `r` 刷新选中账号，`R` 刷新全部账号。
+- **手动增删改** —— 新增 / 编辑 / 删除 / 置顶账号；配置存于 `~/.fleetboard/config.yaml`。
+- **搜索与排序** —— `/` 过滤，`s`/`S` 循环排序（名称 / 用量 / 最近刷新）。
+- **Tokyo Night 主题** TUI，移植自 `lazytmux` / `lazyssh` 工具家族。
+
+## 🔒 工作原理
+
+fleetboard 读取账号配置，调用各厂商官方的用量 / 余额接口，归一化后渲染。token 从（账号指定的）环境变量读取，绝不落盘，也只发往该厂商自己的接口。本地解析 `~/.claude/` 用量文件不在范围内——服务端是唯一数据源。
+
+## 📦 安装
+
+### 方式一：Homebrew（macOS）
+
+```bash
+brew install maybewaityou/tap/fleetboard
+```
+
+较新版 Homebrew 首次安装若提示 tap 不可信：
+
+```bash
+brew trust maybewaityou/tap
+```
+
+### 方式二：从 Releases 下载二进制
+
+```bash
+LATEST_TAG=$(curl -fsSL https://api.github.com/repos/maybewaityou/fleetboard/releases/latest | jq -r .tag_name)
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64) ARCH=amd64 ;;
+  aarch64|arm64) ARCH=arm64 ;;
+esac
+curl -LJO "https://github.com/maybewaityou/fleetboard/releases/download/${LATEST_TAG}/fleetboard_${OS}_${ARCH}.tar.gz"
+tar -xzf fleetboard_${OS}_${ARCH}.tar.gz
+sudo mv fleetboard /usr/local/bin/
+fleetboard
+```
+
+### 方式三：源码编译
+
+```bash
+git clone https://github.com/maybewaityou/fleetboard.git
+cd fleetboard
+make build
+sudo mv bin/fleetboard /usr/local/bin/
+# 或不安装直接运行
+make run
+```
+
+### 配置
+
+创建 `~/.fleetboard/config.yaml`：
+
+```yaml
+accounts:
+  - id: glm-main
+    provider: glm
+    label: 智谱编码-主力
+    token_env: GLM_API_KEY
+  - id: kimi-main
+    provider: kimi
+    label: Kimi
+    token_env: MOONSHOT_API_KEY
+refresh:
+  on_start: true
+  interval: 5m
+ui:
+  theme: tokyo-night
+```
+
+导出账号引用的 token 环境变量，然后运行 `fleetboard`。
+
+> **homebrew-tap 维护者注意：** 发布工作流通过仓库 secret `HOMEBREW_TAP_GITHUB_TOKEN`（对 `maybewaityou/homebrew-tap` 有 `contents:write` 的 PAT）推送 formula。
+
+## ⌨️ 快捷键
+
+| 键 | 动作 | 键 | 动作 |
+|----|------|----|------|
+| `↑↓` | 移动 | `r` | 刷新选中 |
+| `←/→` | 列表 / 详情切换焦点 | `R` | 刷新全部 |
+| `/` | 搜索 | `a` | 新增账号 |
+| `s`/`S` | 循环排序 | `e` | 编辑账号 |
+| `p` | 置顶 / 取消 | `d` | 删除账号 |
+| `?` | 帮助 | `q` | 退出 |
+
+## 🏗 架构
+
+fleetboard 采用六边形（端口适配器）架构，与 `lazytmux`/`lazyssh` 一致：
+
+```
+cmd/main.go                          → cobra 根命令：加载配置 + 装配依赖
+internal/core/domain/                → Account / ProviderUsage / UsageDimension
+internal/core/ports/                 → UsageProvider / ConfigStore / View
+internal/core/services/              → Aggregator：并发拉取，单点失败不连坐
+internal/adapters/providers/         → 每家厂商一个 adapter（glm、minimax、kimi、deepseek …）
+internal/adapters/config/yaml/       → ~/.fleetboard/config.yaml（原子写 + 备份）
+internal/adapters/ui/                → tview TUI（Tokyo Night）
+```
+
+新增厂商 = 在 `internal/adapters/providers/<name>/` 放一个文件，并在 `cmd/main.go` 注册。
+
+## 🤝 贡献
+
+语义化提交：`type(scope): 简短描述`
+（`feat`、`fix`、`improve`、`refactor`、`docs`、`test`、`ci`、`chore`）。
+
+## ⭐ 支持
+
+如果 fleetboard 帮到了你，欢迎点个 Star。
+
+### ☕ 赞助
+
+如果愿意支持开发：
+
+<a href="https://www.buymeacoffee.com/maybewaityou" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="200" /></a>
+
+**微信 / 支付宝**
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="./docs/resources/donate-wechat.jpg" alt="微信" width="180" />
+      <br/>
+      <b>微信</b>
+    </td>
+    <td width="80"></td>
+    <td align="center">
+      <img src="./docs/resources/donate-alipay.jpg" alt="支付宝" width="180" />
+      <br/>
+      <b>支付宝</b>
+    </td>
+  </tr>
+</table>
+
+## 🙏 致谢
+
+- [`lazytmux`](https://github.com/maybewaityou/lazytmux) / `lazyssh` —— fleetboard 移植的 TUI 布局、主题与架构。
+- [`cc-switch`](https://github.com/farion1231/cc-switch) —— 厂商用量端点的参考。
+
+## 许可证
+
+Apache-2.0，详见 [LICENSE](LICENSE)。

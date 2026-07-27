@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package ui hosts the tview-based TUI adapter for fleetboard. This file holds
-// the Tokyo Night palette shared by the theme application, vendor tags and the
+// the Tokyo Night palette shared by the theme application, provider tags and the
 // status indicator.
 //
 // The palette is ported from lazytmux/internal/adapters/ui/const.go and the

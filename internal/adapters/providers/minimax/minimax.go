@@ -27,7 +27,7 @@
 //
 // 最终映射为单维度 UsageDimension{Name:"Token Plan",
 // PercentUsed: usagePercent, Unit:"%", ResetsAt: end_time, Source:"api-balanced"}，
-// 并调 VendorUsage.SelectPrimary()。
+// 并调 ProviderUsage.SelectPrimary()。
 package minimax
 
 import (
@@ -67,8 +67,8 @@ func New() *Provider {
 	return &Provider{hc: &http.Client{Timeout: httpTimeout}}
 }
 
-// Vendor 返回厂商标识，对应 domain.Account.Vendor。
-func (p *Provider) Vendor() string { return "minimax" }
+// Provider 返回厂商标识，对应 domain.Account.Provider。
+func (p *Provider) Provider() string { return "minimax" }
 
 // apiResp 是 MiniMax token_plan/remains 接口的响应结构。
 //
@@ -101,12 +101,12 @@ type modelRemain struct {
 	EndTime   int64  `json:"end_time"`
 }
 
-// FetchUsage 拉取该账号当前 Token Plan 用量，返回单维度 VendorUsage。
-// 出错时 VendorUsage 仍被填充（账号字段 + FetchedAt + Err），便于上层展示局部信息。
-func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.VendorUsage, error) {
-	u := domain.VendorUsage{
+// FetchUsage 拉取该账号当前 Token Plan 用量，返回单维度 ProviderUsage。
+// 出错时 ProviderUsage 仍被填充（账号字段 + FetchedAt + Err），便于上层展示局部信息。
+func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.ProviderUsage, error) {
+	u := domain.ProviderUsage{
 		AccountID: acc.ID,
-		Vendor:    "minimax",
+		Provider:  "minimax",
 		Label:     acc.Label,
 		FetchedAt: time.Now(),
 	}

@@ -28,9 +28,9 @@ import (
 // goldenPayload 是 DeepSeek /user/balance 响应金样本。金额是 string。
 const goldenPayload = `{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"110.00","granted_balance":"10.00","topped_up_balance":"100.00"}]}`
 
-func TestVendorReturnsDeepSeek(t *testing.T) {
-	if got := New().Vendor(); got != "deepseek" {
-		t.Fatalf("Vendor() = %q, want deepseek", got)
+func TestProviderReturnsDeepSeek(t *testing.T) {
+	if got := New().Provider(); got != "deepseek" {
+		t.Fatalf("Provider() = %q, want deepseek", got)
 	}
 }
 
@@ -51,7 +51,7 @@ func TestFetchUsageGolden(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("DEEPSEEK_API_KEY", "KEY123")
-	acc := domain.Account{ID: "d", Vendor: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "d", Provider: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
 
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err != nil {
@@ -74,8 +74,8 @@ func TestFetchUsageGolden(t *testing.T) {
 		t.Fatalf("len(Dimensions) = %d, want 1", len(u.Dimensions))
 	}
 	d := u.Dimensions[0]
-	if d.Name != "可用余额" {
-		t.Errorf("dim.Name = %q, want 可用余额", d.Name)
+	if d.Name != "Available balance" {
+		t.Errorf("dim.Name = %q, want Available balance", d.Name)
 	}
 	if d.Balance != 110.0 {
 		t.Errorf("dim.Balance = %v, want 110.0 (total_balance \"110.00\" parsed, no /100)", d.Balance)
@@ -91,12 +91,12 @@ func TestFetchUsageGolden(t *testing.T) {
 	}
 
 	// (d) Primary 指向余额维度
-	if u.Primary == nil || u.Primary.Name != "可用余额" {
-		t.Errorf("Primary = %+v, want 可用余额 dim", u.Primary)
+	if u.Primary == nil || u.Primary.Name != "Available balance" {
+		t.Errorf("Primary = %+v, want Available balance dim", u.Primary)
 	}
 
 	// 账号字段 + Basic Info
-	if u.AccountID != "d" || u.Vendor != "deepseek" || u.Label != "DeepSeek" {
+	if u.AccountID != "d" || u.Provider != "deepseek" || u.Label != "DeepSeek" {
 		t.Errorf("top fields wrong: %+v", u)
 	}
 	if u.Endpoint != "/user/balance" {
@@ -122,7 +122,7 @@ func TestFetchUsageUSDCurrency(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("DEEPSEEK_API_KEY", "K")
-	acc := domain.Account{ID: "d", Vendor: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "d", Provider: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -144,7 +144,7 @@ func TestFetchUsageNon200(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("DEEPSEEK_API_KEY", "BAD")
-	acc := domain.Account{ID: "d", Vendor: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "d", Provider: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error for HTTP 401")
@@ -158,7 +158,7 @@ func TestFetchUsageNon200(t *testing.T) {
 	if u.Primary != nil {
 		t.Errorf("Primary should be nil on HTTP error, got %+v", u.Primary)
 	}
-	if u.AccountID != "d" || u.Vendor != "deepseek" || u.Label != "DeepSeek" {
+	if u.AccountID != "d" || u.Provider != "deepseek" || u.Label != "DeepSeek" {
 		t.Errorf("error-path fields wrong: %+v", u)
 	}
 }
@@ -171,7 +171,7 @@ func TestFetchUsageServerDown(t *testing.T) {
 	srv.Close() // 关闭 server，触发传输错误
 
 	t.Setenv("DEEPSEEK_API_KEY", "K")
-	acc := domain.Account{ID: "d", Vendor: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "d", Provider: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error when server down")
@@ -179,7 +179,7 @@ func TestFetchUsageServerDown(t *testing.T) {
 	if u.Err == nil {
 		t.Error("u.Err should be set on transport error")
 	}
-	if u.AccountID != "d" || u.Vendor != "deepseek" || u.Label != "DeepSeek" {
+	if u.AccountID != "d" || u.Provider != "deepseek" || u.Label != "DeepSeek" {
 		t.Errorf("error-path fields wrong: %+v", u)
 	}
 }
@@ -193,7 +193,7 @@ func TestFetchUsageEmptyBalanceInfos(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("DEEPSEEK_API_KEY", "K")
-	acc := domain.Account{ID: "d", Vendor: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "d", Provider: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error for empty balance_infos, got nil")
@@ -211,7 +211,7 @@ func TestFetchUsageBadJSON(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("DEEPSEEK_API_KEY", "K")
-	acc := domain.Account{ID: "d", Vendor: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "d", Provider: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error for bad JSON, got nil")
@@ -232,7 +232,7 @@ func TestFetchUsageEmptyCurrency(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("DEEPSEEK_API_KEY", "K")
-	acc := domain.Account{ID: "d", Vendor: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "d", Provider: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err != nil {
 		t.Fatalf("unexpected err for empty currency (should default to CNY): %v", err)

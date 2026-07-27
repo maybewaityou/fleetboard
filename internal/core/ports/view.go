@@ -21,5 +21,5 @@ type View interface {
 	// Run 阻塞运行 TUI 主循环，直到用户退出。
 	Run() error
 	// Render 将一次刷新的全部厂商用量渲染到界面上。
-	Render(usages []domain.VendorUsage)
+	Render(usages []domain.ProviderUsage)
 }

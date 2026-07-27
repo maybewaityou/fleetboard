@@ -28,9 +28,9 @@ import (
 // goldenPayload 是 Moonshot /v1/users/me/balance 成功响应金样本。
 const goldenPayload = `{"code":0,"data":{"available_balance":49.58894,"voucher_balance":46.58893,"cash_balance":3.00001},"scode":"0x0","status":true}`
 
-func TestVendorReturnsKimi(t *testing.T) {
-	if got := New().Vendor(); got != "kimi" {
-		t.Fatalf("Vendor() = %q, want kimi", got)
+func TestProviderReturnsKimi(t *testing.T) {
+	if got := New().Provider(); got != "kimi" {
+		t.Fatalf("Provider() = %q, want kimi", got)
 	}
 }
 
@@ -65,7 +65,7 @@ func TestFetchUsageGolden(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("MOONSHOT_API_KEY", "KEY123")
-	acc := domain.Account{ID: "k", Vendor: "kimi", Label: "Kimi", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "k", Provider: "kimi", Label: "Kimi", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
 
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err != nil {
@@ -88,8 +88,8 @@ func TestFetchUsageGolden(t *testing.T) {
 		t.Fatalf("len(Dimensions) = %d, want 1", len(u.Dimensions))
 	}
 	d := u.Dimensions[0]
-	if d.Name != "可用余额" {
-		t.Errorf("dim.Name = %q, want 可用余额", d.Name)
+	if d.Name != "Available balance" {
+		t.Errorf("dim.Name = %q, want Available balance", d.Name)
 	}
 	if d.Balance != 49.58894 {
 		t.Errorf("dim.Balance = %v, want 49.58894 (available_balance)", d.Balance)
@@ -105,12 +105,12 @@ func TestFetchUsageGolden(t *testing.T) {
 	}
 
 	// (d) Primary 指向余额维度
-	if u.Primary == nil || u.Primary.Name != "可用余额" {
-		t.Errorf("Primary = %+v, want 可用余额 dim", u.Primary)
+	if u.Primary == nil || u.Primary.Name != "Available balance" {
+		t.Errorf("Primary = %+v, want Available balance dim", u.Primary)
 	}
 
 	// 账号字段 + Basic Info
-	if u.AccountID != "k" || u.Vendor != "kimi" || u.Label != "Kimi" {
+	if u.AccountID != "k" || u.Provider != "kimi" || u.Label != "Kimi" {
 		t.Errorf("top fields wrong: %+v", u)
 	}
 	if u.Endpoint != "/v1/users/me/balance" {
@@ -135,7 +135,7 @@ func TestFetchUsageNonZeroCode(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("MOONSHOT_API_KEY", "K")
-	acc := domain.Account{ID: "k", Vendor: "kimi", Label: "l", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "k", Provider: "kimi", Label: "l", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error for code!=0, got nil")
@@ -156,7 +156,7 @@ func TestFetchUsageServerDown(t *testing.T) {
 	srv.Close()
 
 	t.Setenv("MOONSHOT_API_KEY", "K")
-	acc := domain.Account{ID: "k", Vendor: "kimi", Label: "l", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "k", Provider: "kimi", Label: "l", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error when server down")
@@ -164,7 +164,7 @@ func TestFetchUsageServerDown(t *testing.T) {
 	if u.Err == nil {
 		t.Error("u.Err should be set on transport error")
 	}
-	if u.AccountID != "k" || u.Vendor != "kimi" || u.Label != "l" {
+	if u.AccountID != "k" || u.Provider != "kimi" || u.Label != "l" {
 		t.Errorf("error-path fields wrong: %+v", u)
 	}
 }
@@ -179,7 +179,7 @@ func TestFetchUsageNon200(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("MOONSHOT_API_KEY", "BADKEY")
-	acc := domain.Account{ID: "k", Vendor: "kimi", Label: "l", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "k", Provider: "kimi", Label: "l", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error for HTTP 401, got nil")
@@ -196,8 +196,8 @@ func TestFetchUsageNon200(t *testing.T) {
 		t.Errorf("Primary should be nil on HTTP error, got %+v", u.Primary)
 	}
 	// 错误路径下仍填充账号字段
-	if u.AccountID != "k" || u.Vendor != "kimi" || u.Label != "l" {
-		t.Errorf("error-path VendorUsage fields wrong: %+v", u)
+	if u.AccountID != "k" || u.Provider != "kimi" || u.Label != "l" {
+		t.Errorf("error-path ProviderUsage fields wrong: %+v", u)
 	}
 }
 
@@ -209,7 +209,7 @@ func TestFetchUsageBadJSON(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("MOONSHOT_API_KEY", "K")
-	acc := domain.Account{ID: "k", Vendor: "kimi", Label: "l", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "k", Provider: "kimi", Label: "l", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error for bad JSON, got nil")

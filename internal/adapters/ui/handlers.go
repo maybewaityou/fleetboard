@@ -76,7 +76,7 @@ func (t *TUI) openAccountForm(edit bool) {
 	id := editingID
 	form.OnSubmit(func(acc domain.Account) {
 		t.closeForm()
-		var usages []domain.VendorUsage
+		var usages []domain.ProviderUsage
 		switch {
 		case id != "" && t.onEditAccount != nil:
 			usages = t.onEditAccount(id, acc)

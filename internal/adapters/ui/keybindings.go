@@ -35,5 +35,6 @@ var keyBindings = []KeyBinding{
 	{"Account", "p", "Pin / unpin"},
 	{"Usage", "r", "Refresh selected"},
 	{"Usage", "R", "Refresh all"},
+	{"Usage", "s/S", "Cycle sort"},
 	{"Other", "?", "Help"},
 }

@@ -25,7 +25,7 @@ import (
 func TestNewRegistryEmpty(t *testing.T) {
 	r := NewRegistry()
 	if _, ok := r.Get("anything"); ok {
-		t.Fatal("empty registry should miss every vendor")
+		t.Fatal("empty registry should miss every provider")
 	}
 }
 
@@ -36,17 +36,17 @@ func TestRegisterAndGet(t *testing.T) {
 
 	got, ok := r.Get("glm")
 	if !ok {
-		t.Fatal("expected to find registered vendor glm")
+		t.Fatal("expected to find registered provider glm")
 	}
-	if got.Vendor() != "glm" {
-		t.Fatalf("got vendor %q, want glm", got.Vendor())
+	if got.Provider() != "glm" {
+		t.Fatalf("got provider %q, want glm", got.Provider())
 	}
 	if got != p {
 		t.Fatal("Get should return the exact pointer registered")
 	}
 }
 
-func TestGetMissingVendor(t *testing.T) {
+func TestGetMissingProvider(t *testing.T) {
 	r := NewRegistry(mock.New("glm", nil, nil))
 	if _, ok := r.Get("minimax"); ok {
 		t.Fatal("minimax was never registered, expected ok=false")
@@ -66,7 +66,7 @@ func TestNewRegistryVariadic(t *testing.T) {
 	}
 }
 
-func TestRegisterOverwritesSameVendor(t *testing.T) {
+func TestRegisterOverwritesSameProvider(t *testing.T) {
 	first := mock.New("glm", []domain.UsageDimension{{Name: "old"}}, nil)
 	second := mock.New("glm", []domain.UsageDimension{{Name: "new"}}, nil)
 	r := NewRegistry(first)
@@ -96,7 +96,7 @@ func TestRegistryReturnsUsableProvider(t *testing.T) {
 	if !ok {
 		t.Fatal("glm missing")
 	}
-	u, err := p.FetchUsage(context.Background(), domain.Account{ID: "a1", Vendor: "glm", Label: "main"})
+	u, err := p.FetchUsage(context.Background(), domain.Account{ID: "a1", Provider: "glm", Label: "main"})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
