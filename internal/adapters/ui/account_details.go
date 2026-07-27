@@ -58,10 +58,10 @@ func (d *AccountDetails) Render(u domain.VendorUsage) {
 	d.SetTextAlign(tview.AlignLeft)
 	var b strings.Builder
 
-	// Header: label (accent bold) + vendor chip.
-	bg, fg := VendorTag(u.Vendor)
+	// Header: label (accent bold) + vendor in brand color (no background chip).
+	_, fg := VendorTag(u.Vendor)
 	b.WriteString("[" + colorAccent + "::b]" + u.Label + "[-]  ")
-	b.WriteString(fmt.Sprintf("[%s:%s]%s[-]", fg, bg, u.Vendor))
+	b.WriteString(fmt.Sprintf("[%s]%s[-]", fg, u.Vendor))
 	if u.Err != nil {
 		// Surface the failure without hiding the dimensions below it.
 		msg := u.Err.Error()

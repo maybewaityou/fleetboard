@@ -43,10 +43,9 @@ func TestFormatAccountLine_WithPrimary(t *testing.T) {
 	if !strings.Contains(got, "prod-glm") {
 		t.Errorf("missing label %q in: %q", "prod-glm", got)
 	}
-	// vendor chip on glm bg color
-	bg, _ := VendorTag("glm")
-	if !strings.Contains(got, "[white:"+bg+"]") {
-		t.Errorf("missing vendor chip bg %q in: %q", bg, got)
+	// vendor chip: unified accent background (lazytmux tagChip style), black text
+	if !strings.Contains(got, "[black:"+colorAccent+"]") {
+		t.Errorf("missing vendor chip [black:%s] in: %q", colorAccent, got)
 	}
 	if !strings.Contains(got, "glm") {
 		t.Errorf("missing vendor text in: %q", got)
@@ -135,9 +134,9 @@ func TestFormatAccountLine_UnknownVendor(t *testing.T) {
 		Primary:   &domain.UsageDimension{PercentUsed: 10},
 	}
 	got := formatAccountLine(u)
-	bg, _ := VendorTag("weird-vendor") // unknownVendorBG
-	if !strings.Contains(got, "[white:"+bg+"]") {
-		t.Errorf("unknown vendor must use fallback bg %q: %q", bg, got)
+	// vendor chip is unified accent regardless of vendor identity
+	if !strings.Contains(got, "[black:"+colorAccent+"]") {
+		t.Errorf("vendor chip must be unified accent [black:%s]: %q", colorAccent, got)
 	}
 }
 

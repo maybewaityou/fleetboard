@@ -132,20 +132,19 @@ func primaryPercent(u domain.VendorUsage) float64 {
 
 // formatAccountLine renders one list row:
 //
-//	⚠? <label>  [white:bg] vendor [-]  <pct>  <colored dot>
+//	⚠? <label>  [black:accent] vendor [-:-:-]  <pct>  <colored dot>
 //
-// The vendor segment uses tview's [fg:bg] dual-color syntax to paint a brand
-// chip (bg from VendorTag). The status dot is colored by StatusColor over the
-// primary dimension's percent. When Primary is nil the percent reads "N/A" and
-// the dot is the hollow ○ (still colored gray via StatusColor(-1)).
+// The vendor chip uses lazytmux's tagChip style (black text on a unified accent
+// background — same color for every vendor, by design). The status dot is
+// colored by StatusColor over the primary dimension's percent. When Primary is
+// nil the percent reads "N/A" and the dot is the hollow ○ (still colored gray
+// via StatusColor(-1)).
 //
 // err transparency (task-7 contract): when VendorUsage.Err is non-nil the row is
 // prefixed with a red ⚠ so the failure is visible, but the rest of the line
 // still renders — the account's existing dimensions remain usable in the
 // details pane. We do NOT hide failed accounts.
 func formatAccountLine(u domain.VendorUsage) string {
-	bg, _ := VendorTag(u.Vendor)
-
 	pctStr, dot := "N/A", "○"
 	if u.Primary != nil {
 		pctStr = fmt.Sprintf("%d%%", int(u.Primary.PercentUsed))
@@ -158,7 +157,8 @@ func formatAccountLine(u domain.VendorUsage) string {
 		warn = "[" + colorRed + "]⚠ [-]"
 	}
 
+	// vendor chip 学 lazytmux tagChip：黑字 + 统一 accent 背景 pill；[-:-:-] 重置 fg/bg/style。
 	// pctStr is plain text (no color tags), so %-4s pads on visible width.
-	return fmt.Sprintf("%s%s  [white:%s] %s [-]  %-4s  [%s]%s[-]",
-		warn, u.Label, bg, u.Vendor, pctStr, dotCol, dot)
+	return fmt.Sprintf("%s%s  [black:%s] %s [-:-:-]  %-4s  [%s]%s[-]",
+		warn, u.Label, colorAccent, u.Vendor, pctStr, dotCol, dot)
 }
