@@ -324,7 +324,7 @@ func (t *TUI) handleGlobalKeys(e *tcell.EventKey) *tcell.EventKey {
 		t.doRefreshAll()
 		return nil
 	case '?':
-		t.setStatusTemporary("[" + colorCyan + "]fleetboard[-] · see docs/superpowers/specs for the full key list")
+		t.openHelp()
 		return nil
 	case 'a', 'e', 'd', 's':
 		// CRUD/sort are out of scope for the UI shell (Task 9/12 wiring); surface
