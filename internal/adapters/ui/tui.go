@@ -68,7 +68,7 @@ type Config struct {
 	OnSaveAccount   func(domain.Account) []domain.ProviderUsage                // a — 新增账号
 	OnDeleteAccount func(id string) []domain.ProviderUsage                     // d — 删除账号
 	OnEditAccount   func(id string, acc domain.Account) []domain.ProviderUsage // e — 编辑账号
-	OnLoadAccount   func(id string) (domain.Account, bool)                   // 编辑时反查账号预填表单
+	OnLoadAccount   func(id string) (domain.Account, bool)                     // 编辑时反查账号预填表单
 	OnTogglePin     func(id string) []domain.ProviderUsage                     // p — 置顶/取消置顶
 }
 

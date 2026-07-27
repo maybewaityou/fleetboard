@@ -34,7 +34,7 @@ func GenerateAccountID() string {
 // Account 是一个被监控的厂商账号配置。
 type Account struct {
 	ID       string `yaml:"id"`
-	Provider   string `yaml:"provider"` // glm | minimax | kimi | ...
+	Provider string `yaml:"provider"` // glm | minimax | kimi | ...
 	Label    string `yaml:"label"`
 	BaseURL  string `yaml:"base_url,omitempty"` // 可选，覆盖默认
 	TokenEnv string `yaml:"token_env"`          // 环境变量名，token 从此读

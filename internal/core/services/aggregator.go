@@ -78,7 +78,7 @@ func (a *Aggregator) fetchOne(ctx context.Context, acc domain.Account) domain.Pr
 		// 无 adapter：构造空 u + ErrUnknownProvider（携带 provider 名便于排障）。
 		return domain.ProviderUsage{
 			AccountID: acc.ID,
-			Provider:    acc.Provider,
+			Provider:  acc.Provider,
 			Label:     acc.Label,
 			FetchedAt: time.Now(),
 			Pinned:    acc.Pinned,

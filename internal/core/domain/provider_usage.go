@@ -30,7 +30,7 @@ const (
 // 供 details 页面展示账号基本信息；不同 provider 填不同子集（零值=无）。
 type ProviderUsage struct {
 	AccountID  string
-	Provider     string
+	Provider   string
 	Label      string
 	Dimensions []UsageDimension
 	Primary    *UsageDimension
