@@ -66,11 +66,11 @@ func NewAccountForm() *AccountForm {
 
 	// placeholder：每个字段给提示；Provider 下拉清空预选（idx=-1 显示 noSelection 文本）。
 	// DropDown 无 SetPlaceholder，用 SetTextOptions 的 noSelection 参数作未选时的提示。
-	f.input(afFieldLabel).SetPlaceholder(phLabel)
+	f.input(afFieldLabel).SetPlaceholder(phLabel).SetPlaceholderTextColor(tcell.GetColor(colorSecondary))
 	f.providerDropDown().SetTextOptions("", "", "", "", phProvider)
 	f.providerDropDown().SetCurrentOption(-1)
-	f.input(afFieldBaseURL).SetPlaceholder(phBaseURL)
-	f.input(afFieldTokenEnv).SetPlaceholder(phTokenEnv)
+	f.input(afFieldBaseURL).SetPlaceholder(phBaseURL).SetPlaceholderTextColor(tcell.GetColor(colorSecondary))
+	f.input(afFieldTokenEnv).SetPlaceholder(phTokenEnv).SetPlaceholderTextColor(tcell.GetColor(colorSecondary))
 
 	f.form.SetInputCapture(func(e *tcell.EventKey) *tcell.EventKey {
 		switch e.Key() {
