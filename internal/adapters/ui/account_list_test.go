@@ -276,6 +276,53 @@ func TestRenderDimension_NA(t *testing.T) {
 	}
 }
 
+// TestFormatMoneyShort 验证余额短格式：CNY→¥、USD→$、>1000 缩写 k、1 位小数。
+func TestFormatMoneyShort(t *testing.T) {
+	cases := []struct {
+		balance  float64
+		currency string
+		want     string
+	}{
+		{49.58894, "CNY", "¥49.6"},
+		{3.0, "USD", "$3.0"},
+		{1200.0, "CNY", "¥1.2k"},
+		{0, "CNY", "¥0.0"},
+	}
+	for _, tc := range cases {
+		if got := formatMoneyShort(tc.balance, tc.currency); got != tc.want {
+			t.Errorf("formatMoneyShort(%v,%q) = %q, want %q", tc.balance, tc.currency, got, tc.want)
+		}
+	}
+}
+
+// TestFormatAccountLineBalance 验证余额型行渲染：含余额短格式、绿点（余额>0）、
+// 灰色 miniBar（renderBar(-1,4) 自然得灰条）。
+func TestFormatAccountLineBalance(t *testing.T) {
+	balDim := domain.UsageDimension{Name: "可用余额", Balance: 49.58894, Currency: "CNY", PercentUsed: -1}
+	u := domain.VendorUsage{AccountID: "k", Vendor: "kimi", Label: "Kimi-主力", Primary: &balDim, Dimensions: []domain.UsageDimension{balDim}}
+	got := formatAccountLine(u)
+
+	if !strings.Contains(got, "¥49.6") {
+		t.Errorf("balance line should contain ¥49.6, got: %q", got)
+	}
+	if !strings.Contains(got, "["+colorGreen+"]") {
+		t.Errorf("balance>0 should render green dot, got: %q", got)
+	}
+	if !strings.Contains(got, "["+colorGray+"]") {
+		t.Errorf("balance line should have gray miniBar, got: %q", got)
+	}
+}
+
+// TestFormatAccountLineBalanceDepleted 验证余额<=0 渲染红点。
+func TestFormatAccountLineBalanceDepleted(t *testing.T) {
+	balDim := domain.UsageDimension{Name: "可用余额", Balance: 0, Currency: "CNY", PercentUsed: -1}
+	u := domain.VendorUsage{AccountID: "d", Vendor: "deepseek", Label: "DS", Primary: &balDim}
+	got := formatAccountLine(u)
+	if !strings.Contains(got, "["+colorRed+"]") {
+		t.Errorf("balance<=0 should render red dot, got: %q", got)
+	}
+}
+
 // errSentinel is a stable non-nil error for the err-marker test.
 var errSentinel = errStr("boom")
 

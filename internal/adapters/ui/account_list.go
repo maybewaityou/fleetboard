@@ -16,6 +16,7 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -142,12 +143,23 @@ func primaryPercent(u domain.VendorUsage) float64 {
 // fetched 是相对时间(humanizeAgo)。label 用 padDisplay(CJK 显示宽度对齐)。
 func formatAccountLine(u domain.VendorUsage) string {
 	pctStr, dot := "N/A", "○"
-	if u.Primary != nil {
+	dotCol := colorGray // N/A 默认灰点
+	if u.Primary != nil && u.Primary.Currency != "" {
+		// 余额型：显示余额 + 绿/红点（按余额正负）
+		pctStr = formatMoneyShort(u.Primary.Balance, u.Primary.Currency)
+		dot = "●"
+		if u.Primary.Balance > 0 {
+			dotCol = colorGreen
+		} else {
+			dotCol = colorRed
+		}
+	} else if u.Primary != nil {
+		// 配额型：百分比 + StatusColor
 		pctStr = fmt.Sprintf("%d%%", int(u.Primary.PercentUsed))
 		dot = "●"
+		dotCol = StatusColor(u.Primary.PercentUsed)
 	}
-	pct := primaryPercent(u)
-	dotCol := StatusColor(pct)
+	pct := primaryPercent(u) // 余额型 PercentUsed=-1 → renderBar(-1,4) 自然灰条
 
 	// icon: vendor 首字母大写, 品牌色（VendorTag 的 fg）。
 	_, iconFg := VendorTag(u.Vendor)
@@ -179,6 +191,15 @@ func formatAccountLine(u domain.VendorUsage) string {
 		colorPrimary, pctStr,
 		dotCol, dot,
 		colorSecondary, fetched)
+}
+
+// formatMoneyShort 余额短格式（列表用，1 位小数，>1000 缩写 k）。
+func formatMoneyShort(balance float64, currency string) string {
+	sym := currencySymbol(currency)
+	if math.Abs(balance) >= 1000 {
+		return fmt.Sprintf("%s%.1fk", sym, balance/1000)
+	}
+	return fmt.Sprintf("%s%.1f", sym, balance)
 }
 
 // humanizeAgo 把时间渲染为相对时长（"5m ago"/"3h ago"/"2d ago"），零值→"—"。

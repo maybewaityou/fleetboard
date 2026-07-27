@@ -254,3 +254,16 @@ func compactInt(n int64, unit string) string {
 	}
 	return s
 }
+
+// currencySymbol 返回货币符号：CNY→¥、USD→$、未知→空。列表的 formatMoneyShort
+// 与详情页（Task 5）共用此映射，避免两处符号表漂移。
+func currencySymbol(currency string) string {
+	switch currency {
+	case "CNY":
+		return "¥"
+	case "USD":
+		return "$"
+	default:
+		return ""
+	}
+}
