@@ -140,6 +140,27 @@ func TestFormatAccountLine_UnknownVendor(t *testing.T) {
 	}
 }
 
+// TestFormatAccountLine_FetchedTime 验证行尾显示最近刷新时间（HH:MM）。
+func TestFormatAccountLine_FetchedTime(t *testing.T) {
+	u := domain.VendorUsage{
+		AccountID: "a", Vendor: "glm", Label: "l",
+		Primary:   &domain.UsageDimension{PercentUsed: 50},
+		FetchedAt: time.Date(2026, 7, 27, 12, 3, 0, 0, time.UTC),
+	}
+	got := formatAccountLine(u)
+	if !strings.Contains(got, "12:03") {
+		t.Errorf("fetched time 12:03 missing in: %q", got)
+	}
+}
+
+// TestPadDisplay_CJKAlignsByDisplayWidth 验证 padDisplay 按显示宽度 pad（中文每字 2 宽）。
+func TestPadDisplay_CJKAlignsByDisplayWidth(t *testing.T) {
+	got := padDisplay("智谱", 8) // 智谱=4 显示宽 → 补 4 空格到 8
+	if n := strings.Count(got, " "); n != 4 {
+		t.Errorf("padDisplay(\"智谱\",8) should add 4 spaces, got %d: %q", n, got)
+	}
+}
+
 // TestPrimaryPercent covers the helper that StatusColor feeds on: nil → -1,
 // otherwise the dimension's percent.
 func TestPrimaryPercent(t *testing.T) {

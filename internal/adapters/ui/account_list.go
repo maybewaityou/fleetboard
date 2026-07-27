@@ -16,6 +16,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -130,20 +131,14 @@ func primaryPercent(u domain.VendorUsage) float64 {
 	return u.Primary.PercentUsed
 }
 
-// formatAccountLine renders one list row:
+// formatAccountLine renders one aligned list row:
 //
-//	⚠? <label>  [black:accent] vendor [-:-:-]  <pct>  <colored dot>
+//	<⚠?> <label pad22>  [black:accent] <vendor pad7> [-:-:-]  <pct pad5>  <dot>  <HH:MM>
 //
-// The vendor chip uses lazytmux's tagChip style (black text on a unified accent
-// background — same color for every vendor, by design). The status dot is
-// colored by StatusColor over the primary dimension's percent. When Primary is
-// nil the percent reads "N/A" and the dot is the hollow ○ (still colored gray
-// via StatusColor(-1)).
-//
-// err transparency (task-7 contract): when VendorUsage.Err is non-nil the row is
-// prefixed with a red ⚠ so the failure is visible, but the rest of the line
-// still renders — the account's existing dimensions remain usable in the
-// details pane. We do NOT hide failed accounts.
+// Columns are fixed-width so vendor / percent / dot / fetched-time align across
+// rows regardless of label length. label uses padDisplay (TaggedStringWidth) so
+// CJK labels align by display width, not byte/rune count. The vendor chip uses
+// lazytmux's tagChip style (black on unified accent). err rows prefix a red ⚠.
 func formatAccountLine(u domain.VendorUsage) string {
 	pctStr, dot := "N/A", "○"
 	if u.Primary != nil {
@@ -152,13 +147,27 @@ func formatAccountLine(u domain.VendorUsage) string {
 	}
 	dotCol := StatusColor(primaryPercent(u))
 
-	warn := ""
+	label := u.Label
 	if u.Err != nil {
-		warn = "[" + colorRed + "]⚠ [-]"
+		label = "[" + colorRed + "]⚠[-] " + u.Label
 	}
 
-	// vendor chip 学 lazytmux tagChip：黑字 + 统一 accent 背景 pill；[-:-:-] 重置 fg/bg/style。
-	// pctStr is plain text (no color tags), so %-4s pads on visible width.
-	return fmt.Sprintf("%s%s  [black:%s] %s [-:-:-]  %-4s  [%s]%s[-]",
-		warn, u.Label, colorAccent, u.Vendor, pctStr, dotCol, dot)
+	fetched := "—"
+	if !u.FetchedAt.IsZero() {
+		fetched = u.FetchedAt.Format("15:04")
+	}
+
+	// 列宽固定：label(pad22, CJK 按显示宽度) | vendor chip(%-7s 在 tag 内) | pct(%-5s) | dot | fetched
+	return fmt.Sprintf("%s  [black:%s] %-7s [-:-:-]  %-5s  [%s]%s[-]  [%s]%s[-]",
+		padDisplay(label, 22), colorAccent, u.Vendor, pctStr, dotCol, dot, colorSecondary, fetched)
+}
+
+// padDisplay right-pads s to a fixed DISPLAY width (CJK chars count as 2),
+// preserving tview color tags (tags don't count toward width). Keeps list
+// columns aligned across rows of varying label length.
+func padDisplay(s string, width int) string {
+	if w := tview.TaggedStringWidth(s); w < width {
+		return s + strings.Repeat(" ", width-w)
+	}
+	return s
 }
