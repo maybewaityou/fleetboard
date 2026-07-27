@@ -164,7 +164,7 @@ func displayPercent(u domain.ProviderUsage) float64 {
 // DISPLAY width so the progress bar, the value, the status dot and the
 // "Last Refreshed" text each start on the same column across all rows:
 //
-//	<pin2> <icon> <label pad16> <provider pad9> <miniBar4> <pct 左对齐7> <dot>    <lastRefreshed>
+//	<sp><pin2> <icon> <label pad16> <provider pad9> <miniBar4> <pct 左对齐7> <dot>    <lastRefreshed>
 //
 // icon = provider 首字母(品牌色). label/provider/pct 均用 padDisplay (CJK 显示宽度对齐):
 // pct 左对齐紧贴进度条 (用量数值与进度条语义连贯), 列宽固定 7 使右边界不变, 状态点仍对齐.
@@ -198,16 +198,17 @@ func formatAccountLine(u domain.ProviderUsage) string {
 		label = "[" + colorRed + "]⚠[-] " + u.Label
 	}
 
-	// pin marker：置顶显示绿色 📌，否则两空格保持列对齐（emoji 显示宽 2）。
-	pin := "  "
+	// pin marker：置顶显示绿色 📌，否则等宽空格保持列对齐。前导空格让 📌 不紧贴左边框
+	// （emoji 显示宽 2 + 前导空格 1 = 占位总宽 3，空格占位同为 3，列对齐不受影响）。
+	pin := "   "
 	if u.Pinned {
-		pin = "[" + colorGreen + "]📌[-]"
+		pin = " [" + colorGreen + "]📌[-]"
 	}
 
 	fetched := humanizeAgo(u.FetchedAt)
 
 	// 列布局（每列固定显示宽度 → 进度条/数值/状态点/时间跨行严格对齐）：
-	//   pin(2) icon(1) sp | label pad16 | sp | providerChip(pad9) | 2sp | miniBar(4) sp | pctStr 左对齐7 | sp dot | 4sp | Last Refreshed: fetched
+	//   sp pin(2) icon(1) sp | label pad16 | sp | providerChip(pad9) | 2sp | miniBar(4) sp | pctStr 左对齐7 | sp dot | 4sp | Last Refreshed: fetched
 	// 对齐要点：① provider pad 到 9 覆盖最长 slug "anthropic"，否则 anthropic/deepseek 行整条右半部右移；
 	//          ② pctStr 紧贴 miniBar 左对齐（padDisplay 到 7）：数值与进度条语义连贯（都是用量），
 	//            同时列宽固定 7 → 右边界不变 → 紧跟的状态点 ● 仍落在同一列；miniBar(4) 本身定宽。
