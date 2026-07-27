@@ -26,7 +26,7 @@ import (
 )
 
 // goldenPayload 是 MiniMax token_plan/remains 接口的固定金样本：
-//   - usagePercent = 12（剩余 12%）→ 已用应为 88
+//   - usagePercent = 12（已用 12%，直接用不反转）
 //   - model_remains[0].end_time = 1711929600（2024-04-01 00:00:00 UTC）→ ResetsAt
 //   - start_time = 1711843200（2024-03-31 00:00:00 UTC）
 const goldenPayload = `{"usagePercent":12,"model_remains":[{"model":"abab6","start_time":1711843200,"end_time":1711929600}]}`
@@ -40,7 +40,7 @@ func TestVendorReturnsMiniMax(t *testing.T) {
 // TestFetchUsageGolden 是核心 httptest 金测试，覆盖三个断言：
 //
 //	(a) Authorization 头是 "Bearer KEY123"（必须有 Bearer 前缀——区别于 GLM 裸 key）
-//	(b) PercentUsed == 88（usagePercent=12 是「剩余」，used = 100 - 12 反转）
+//	(b) PercentUsed == 12（usagePercent=12 是「已用」，直接用不反转）
 //	(c) ResetsAt 取自 end_time（Unix 秒 1711929600 → 2024-04-01 00:00:00 UTC）
 func TestFetchUsageGolden(t *testing.T) {
 	var gotAuth, gotCT, gotPath string
@@ -79,9 +79,9 @@ func TestFetchUsageGolden(t *testing.T) {
 	if d.Name != "Token Plan" {
 		t.Errorf("dim.Name = %q, want Token Plan", d.Name)
 	}
-	// 反转：100 - 12 = 88
-	if d.PercentUsed != 88 {
-		t.Errorf("dim.PercentUsed = %v, want 88 (100 - 12 inverted; usagePercent is REMAINING)", d.PercentUsed)
+	// 不反转：usagePercent=12 即已用 12%
+	if d.PercentUsed != 12 {
+		t.Errorf("dim.PercentUsed = %v, want 12 (usagePercent is USED, not inverted)", d.PercentUsed)
 	}
 	if d.Unit != "%" {
 		t.Errorf("dim.Unit = %q, want %%", d.Unit)
@@ -100,8 +100,8 @@ func TestFetchUsageGolden(t *testing.T) {
 	if u.Primary == nil || u.Primary.Name != "Token Plan" {
 		t.Errorf("Primary = %+v, want Token Plan dim", u.Primary)
 	}
-	if u.Primary.PercentUsed != 88 {
-		t.Errorf("Primary.PercentUsed = %v, want 88", u.Primary.PercentUsed)
+	if u.Primary.PercentUsed != 12 {
+		t.Errorf("Primary.PercentUsed = %v, want 12", u.Primary.PercentUsed)
 	}
 
 	// FetchedAt 与顶层账号字段
@@ -131,9 +131,9 @@ func TestFetchUsageSnakeCaseField(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	// 100 - 25 = 75
-	if u.Dimensions[0].PercentUsed != 75 {
-		t.Errorf("PercentUsed = %v, want 75 (100 - 25 snake_case variant)", u.Dimensions[0].PercentUsed)
+	// 不反转：usagePercent=25 即已用 25%
+	if u.Dimensions[0].PercentUsed != 25 {
+		t.Errorf("PercentUsed = %v, want 25 (usagePercent=25, not inverted)", u.Dimensions[0].PercentUsed)
 	}
 }
 

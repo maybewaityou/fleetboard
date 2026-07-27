@@ -21,12 +21,12 @@
 //   - 鉴权头：Authorization: Bearer <token_plan_key> —— 【必须带 "Bearer " 前缀】，
 //     这是该接口最易错点（与 GLM 裸 key 不同）。key 从 os.Getenv(acc.TokenEnv) 读取。
 //
-// 响应字段 usage_percent（或驼峰 usagePercent 变体）表示【剩余】比例（非已用！），
-// 故 used = 100 - usagePercent 必须反转。model_remains[] 含 start_time/end_time
-// （Unix 秒）描述当前计费窗口，取首项 end_time 作 ResetsAt。
+// 响应字段 usage_percent（或驼峰 usagePercent 变体）表示【已用】比例（字段名 usage=已用，
+// 实测 unused=0），故 PercentUsed = usagePercent 直接用，不反转。model_remains[] 含
+// start_time/end_time（Unix 秒）描述当前计费窗口，取首项 end_time 作 ResetsAt。
 //
 // 最终映射为单维度 UsageDimension{Name:"Token Plan",
-// PercentUsed: 100-usagePercent, Unit:"%", ResetsAt: end_time, Source:"api-balanced"}，
+// PercentUsed: usagePercent, Unit:"%", ResetsAt: end_time, Source:"api-balanced"}，
 // 并调 VendorUsage.SelectPrimary()。
 package minimax
 
@@ -52,9 +52,6 @@ const (
 
 	nameTokenPlan = "Token Plan"
 	unitPercent   = "%"
-
-	// usagePercentMax 是接口返回「剩余比例」的上限（100% = 完全未用）。
-	usagePercentMax = 100
 )
 
 // 编译期断言：*Provider 实现 ports.UsageProvider。
@@ -83,8 +80,8 @@ type apiResp struct {
 	ModelRemains      []modelRemain `json:"model_remains"`
 }
 
-// usagePercent 返回剩余比例（0-100）。优先取 camelCase 变体；
-// 两者都为 0 时视为「0% 剩余 = 已耗尽」（合法语义）。
+// usagePercent 返回已用比例（0-100，字段名 usage=已用）。优先取 camelCase 变体；
+// 两者都为 0 时视为「0% 已用 = 完全未用」。
 //
 // 假设（经观察固化）：真实 API 不会同一次响应里同时输出 snake_case 与 camelCase 两个键。
 // 故「camelCase==0 且 snake_case>0」只会出现在「API 只回了 snake_case」这一种情形，
@@ -155,12 +152,12 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.V
 }
 
 // buildDimension 把 MiniMax 响应映射为单维度 UsageDimension。
-//   - usage_percent 是【剩余】比例 → PercentUsed = 100 - usagePercent（反转）
+//   - usage_percent 是【已用】比例（字段名 usage=已用）→ PercentUsed = usagePercent（直接用，不反转）
 //   - ResetsAt 取 model_remains[0].end_time（Unix 秒）；空数组则零值（UI 层会跳过）
 func buildDimension(r apiResp) domain.UsageDimension {
 	d := domain.UsageDimension{
 		Name:        nameTokenPlan,
-		PercentUsed: float64(usagePercentMax - r.usagePercent()),
+		PercentUsed: float64(r.usagePercent()),
 		Unit:        unitPercent,
 		Source:      sourceTag,
 	}
