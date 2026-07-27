@@ -4,7 +4,7 @@
 
 **终端里的 AI Coding 套餐额度 / 余额仪表盘。**
 
-一屏聚合 GLM、MiniMax、Kimi、DeepSeek（及更多）的额度与余额——用了多少、何时重置、哪个号还能用。
+一屏聚合 GLM、MiniMax、Kimi、DeepSeek 及自建中转平台（new-api / sub2api）的额度与余额——用了多少、何时重置、哪个号还能用。
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
@@ -13,12 +13,25 @@
 ## ✨ 功能
 
 - **一屏看全部厂商** —— 每行一个账号：标签、厂商色块、用量百分比、状态点。
-- **额度 + 余额** —— 百分比窗口（GLM 5 小时 / 每周 / 每月、MiniMax）**与**账户余额（Kimi、DeepSeek）。
+- **额度 + 余额** —— 百分比窗口（GLM 5 小时 / 每周 / 每月、MiniMax）**与**账户余额（Kimi、DeepSeek、new-api、sub2api）。
 - **最近窗口优先** —— 列表展示重置时间最近的那一档，最紧迫的额度始终可见。
 - **两级刷新** —— `r` 刷新选中账号，`R` 刷新全部账号。
 - **手动增删改** —— 新增 / 编辑 / 删除 / 置顶账号；配置存于 `~/.fleetboard/config.yaml`。
 - **搜索与排序** —— `/` 过滤，`s`/`S` 循环排序（名称 / 用量 / 最近刷新）。
 - **Tokyo Night 主题** TUI，移植自 `lazytmux` / `lazyssh` 工具家族。
+
+## 📡 支持的厂商
+
+| 厂商 | 类型 | 展示内容 | `base_url` |
+|------|------|----------|------------|
+| `glm` | 配额型 | 5 小时 / 每周 / 每月用量百分比窗口 | 可选 |
+| `minimax` | 配额型 | 用量百分比窗口 | 可选 |
+| `kimi` | 余额型 | 可用余额（CNY / USD） | 可选 |
+| `deepseek` | 余额型 | 可用余额（CNY） | 可选 |
+| `sub2api` | 余额型 | 可用余额（USD） | **必填** |
+| `newapi` | 余额型 | 可用余额（USD） | **必填** |
+
+配额型厂商返回 已用 / 上限 / 百分比 / 重置窗口；余额型厂商返回剩余余额。自建中转平台（`sub2api`、`new-api`）没有默认域名，`base_url` 必填。new-api 的 `provider` 取值为 `newapi`（无连字符）。
 
 ## 🔒 工作原理
 
@@ -81,11 +94,18 @@ accounts:
     provider: kimi
     label: Kimi
     token_env: MOONSHOT_API_KEY
-  - id: newapi-main
+  # 自建中转平台：base_url 必填（无默认域名）。
+  - id: my-newapi
     provider: newapi
-    base_url: https://your-newapi.example.com
+    label: new-api 中转
+    base_url: https://relay.example.com
     access_token_env: NEWAPI_AT   # 存 access_token 的环境变量
     user_id: "16002"              # new-api 用户 ID
+  - id: my-sub2api
+    provider: sub2api
+    label: sub2api 中转
+    base_url: https://sub.example.com
+    token_env: SUB2API_API_KEY
 refresh:
   on_start: true
   interval: 5m

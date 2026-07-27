@@ -1,0 +1,29 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+    - gocritic
+  settings:
+    gocritic:
+      enabled-tags: [diagnostic, style]
+  exclusions:
+    paths:
+      - "bin"
+    rules:
+      - path: _test\.go
+        linters: [errcheck, gocyclo]
+      - linters: [errcheck]
+        text: "Close"
+
+formatters:
+  enable:
+    - gofumpt

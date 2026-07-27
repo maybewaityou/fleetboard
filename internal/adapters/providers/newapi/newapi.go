@@ -66,8 +66,7 @@ func (p *Provider) Provider() string { return "newapi" }
 
 type userSelfResp struct {
 	Data struct {
-		Quota     int64 `json:"quota"`
-		UsedQuota int64 `json:"used_quota"`
+		Quota int64 `json:"quota"`
 	} `json:"data"`
 }
 
@@ -173,7 +172,7 @@ func (p *Provider) getStat(ctx context.Context, url, bearer, newUser string) (*s
 
 // getJSON 发 GET（带 Bearer + New-Api-User 双 header）并解码进 out；非 2xx 或解码失败返回错误。
 func (p *Provider) getJSON(ctx context.Context, url, bearer, newUser string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}

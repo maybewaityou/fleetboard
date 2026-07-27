@@ -216,15 +216,15 @@ func TestFetchAllMixedIsolationConcurrent(t *testing.T) {
 		if u.AccountID != acc.ID {
 			t.Errorf("[%d] AccountID = %q, want %q", i, u.AccountID, acc.ID)
 		}
-		switch {
-		case acc.Provider == "ok1" || acc.Provider == "ok2":
+		switch acc.Provider {
+		case "ok1", "ok2":
 			if u.Err != nil {
 				t.Errorf("[%d] ok account should be clean, got %v", i, u.Err)
 			}
 			if u.Primary == nil {
 				t.Errorf("[%d] ok Primary missing: %+v", i, u.Primary)
 			}
-		case acc.Provider == "fail1" || acc.Provider == "fail2":
+		case "fail1", "fail2":
 			if u.Err == nil {
 				t.Errorf("[%d] fail account should carry err", i)
 			}

@@ -45,7 +45,7 @@ func NewAccountList() *AccountList {
 }
 
 func (al *AccountList) build() {
-	al.List.ShowSecondaryText(false)
+	al.ShowSecondaryText(false)
 	al.List.SetBorder(true).
 		SetTitle(" Accounts ").
 		SetTitleAlign(tview.AlignCenter).
@@ -58,13 +58,13 @@ func (al *AccountList) build() {
 		SetSelectedTextColor(tcell.GetColor(colorPrimary)).
 		SetHighlightFullLine(true)
 
-	al.List.SetChangedFunc(func(index int, _, _ string, _ rune) {
+	al.SetChangedFunc(func(index int, _, _ string, _ rune) {
 		if index >= 0 && index < len(al.usages) && al.onSelectionChange != nil {
 			al.onSelectionChange(al.usages[index])
 		}
 	})
 
-	al.List.SetInputCapture(func(e *tcell.EventKey) *tcell.EventKey {
+	al.SetInputCapture(func(e *tcell.EventKey) *tcell.EventKey {
 		switch e.Key() {
 		// Left/Backspace/ESC hand focus back to the search bar, mirroring
 		// lazytmux. Right is reserved for List → Details focus and is handled
@@ -84,18 +84,18 @@ func (al *AccountList) build() {
 // user's selection (same flow as lazytmux's UpdateSessions + SelectByName).
 func (al *AccountList) UpdateUsages(usages []domain.ProviderUsage) {
 	al.usages = usages
-	al.List.Clear()
+	al.Clear()
 	for i := range usages {
-		al.List.AddItem(formatAccountLine(usages[i]), "", 0, nil)
+		al.AddItem(formatAccountLine(usages[i]), "", 0, nil)
 	}
-	if al.List.GetItemCount() > 0 {
-		al.List.SetCurrentItem(0)
+	if al.GetItemCount() > 0 {
+		al.SetCurrentItem(0)
 	}
 }
 
 // GetSelected resolves the current cursor position to its ProviderUsage.
 func (al *AccountList) GetSelected() (domain.ProviderUsage, bool) {
-	idx := al.List.GetCurrentItem()
+	idx := al.GetCurrentItem()
 	if idx >= 0 && idx < len(al.usages) {
 		return al.usages[idx], true
 	}
@@ -108,7 +108,7 @@ func (al *AccountList) GetSelected() (domain.ProviderUsage, bool) {
 func (al *AccountList) SelectByAccountID(id string) {
 	for i, u := range al.usages {
 		if u.AccountID == id {
-			al.List.SetCurrentItem(i)
+			al.SetCurrentItem(i)
 			return
 		}
 	}
@@ -126,7 +126,7 @@ func (al *AccountList) OnReturnToSearch(fn func()) *AccountList {
 
 // SetSortTitle writes the active sort mode into the list border title.
 func (al *AccountList) SetSortTitle(mode string) {
-	al.List.SetTitle(" Accounts — Sort: " + mode + " ")
+	al.SetTitle(" Accounts — Sort: " + mode + " ")
 }
 
 // displayDimension returns the dimension shown in the list: the one with the
