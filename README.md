@@ -4,8 +4,9 @@
 
 **A terminal dashboard for AI coding-plan usage &amp; balance across providers.**
 
-See quota and balance for GLM, MiniMax, Kimi, DeepSeek (and more) in one screen —
-how much is used, when it resets, and which account still has headroom.
+See quota and balance for GLM, MiniMax, Kimi, DeepSeek, and self-hosted relays
+(new-api / sub2api) in one screen — how much is used, when it resets, and which
+account still has headroom.
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
@@ -14,12 +15,28 @@ how much is used, when it resets, and which account still has headroom.
 ## ✨ Features
 
 - **One screen, all providers** — each account is a row: label, provider chip, usage %, status dot.
-- **Quota + balance** — percentage windows (GLM 5h/weekly/monthly, MiniMax) **and** account balance (Kimi, DeepSeek).
+- **Quota + balance** — percentage windows (GLM 5h/weekly/monthly, MiniMax) **and** account balance (Kimi, DeepSeek, new-api, sub2api).
 - **Nearest-window priority** — the list surfaces the quota window that resets soonest, so the most urgent tier is always visible.
 - **Two refresh granularities** — `r` re-fetches the selected account, `R` re-fetches all.
 - **Manual CRUD** — add / edit / delete / pin accounts; config lives in `~/.fleetboard/config.yaml`.
 - **Search & sort** — `/` to filter, `s`/`S` to cycle sort (name / usage / refreshed).
 - **Tokyo Night themed** TUI, ported from the `lazytmux` / `lazyssh` tool family.
+
+## 📡 Supported providers
+
+| Provider   | Type    | Shows                                  | `base_url`  |
+|------------|---------|----------------------------------------|-------------|
+| `glm`      | Quota   | 5h / weekly / monthly usage % windows  | optional    |
+| `minimax`  | Quota   | usage % window                         | optional    |
+| `kimi`     | Balance | available balance (CNY / USD)          | optional    |
+| `deepseek` | Balance | available balance (CNY)                | optional    |
+| `sub2api`  | Balance | available balance (USD)                | **required** |
+| `newapi`   | Balance | available balance (USD)                | **required** |
+
+Quota-type providers report used / limit / percent / reset window; balance-type
+providers report a remaining balance. Self-hosted relays (`sub2api`, `new-api`)
+have no default domain, so `base_url` is mandatory. The `provider` value for
+new-api is `newapi` (no hyphen).
 
 ## 🔒 How it works
 
@@ -80,6 +97,17 @@ accounts:
     provider: kimi
     label: Kimi
     token_env: MOONSHOT_API_KEY
+  # Self-hosted relays: base_url is required (no default domain).
+  - id: my-newapi
+    provider: newapi
+    label: new-api relay
+    base_url: https://relay.example.com
+    token_env: NEWAPI_API_KEY
+  - id: my-sub2api
+    provider: sub2api
+    label: sub2api relay
+    base_url: https://sub.example.com
+    token_env: SUB2API_API_KEY
 refresh:
   on_start: true
   interval: 5m
