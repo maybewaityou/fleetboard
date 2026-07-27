@@ -50,11 +50,11 @@ func (s *StatusBar) ResetHints() { s.SetText(defaultHints()) }
 func defaultHints() string {
 	k := colorCyan
 	return "[" + k + "]↑↓[-] Navigate  • " +
-		"[" + k + "]r[-] Refresh  • " + // refresh selected account
-		"[" + k + "]R[-] Refresh All  • " + // refresh every account
 		"[" + k + "]a[-] New  • " +
 		"[" + k + "]e[-] Edit  • " +
 		"[" + k + "]d[-] Delete  • " +
+		"[" + k + "]r[-] Refresh  • " + // refresh selected account
+		"[" + k + "]R[-] Refresh All  • " + // refresh every account
 		"[" + k + "]/[-] Search  • " +
 		"[" + k + "]s[-] Sort  • " +
 		"[" + k + "]?[-] Help  • " +

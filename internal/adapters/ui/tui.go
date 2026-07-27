@@ -240,9 +240,10 @@ func (t *TUI) loadInitialData() *TUI {
 // so search filtering and selection preservation always compose.
 func (t *TUI) applyCacheToViews() {
 	visible := t.visibleUsages()
+	sel := t.selectedID // snapshot: UpdateUsages 的 SetCurrentItem(0) 经 SetChangedFunc 改写 selectedID（#6）
 	t.accountList.UpdateUsages(visible)
-	if t.selectedID != "" {
-		t.accountList.SelectByAccountID(t.selectedID)
+	if sel != "" {
+		t.accountList.SelectByAccountID(sel)
 	}
 	if u, ok := t.accountList.GetSelected(); ok {
 		t.details.Render(u)
@@ -272,9 +273,10 @@ func (t *TUI) handleSelectionChange(u domain.VendorUsage) {
 // match rather than going stale.
 func (t *TUI) handleSearchInput(_ string) {
 	visible := t.visibleUsages()
+	sel := t.selectedID // snapshot: UpdateUsages 的 SetCurrentItem(0) 经 SetChangedFunc 改写 selectedID（#6）
 	t.accountList.UpdateUsages(visible)
-	if t.selectedID != "" {
-		t.accountList.SelectByAccountID(t.selectedID)
+	if sel != "" {
+		t.accountList.SelectByAccountID(sel)
 	}
 	if u, ok := t.accountList.GetSelected(); ok {
 		t.details.Render(u)
