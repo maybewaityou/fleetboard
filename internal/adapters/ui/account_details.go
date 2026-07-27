@@ -159,7 +159,15 @@ func renderDimension(dim domain.UsageDimension) string {
 	// 维度名：独立一行，加粗主色。
 	b.WriteString(fmt.Sprintf("  [%s::b]%s[-]\n", colorPrimary, name))
 
-	// 进度条 + 百分比：独立一行。
+	// 余额型：只显示 Balance 行，不画进度条（余额无进度语义）。
+	if dim.Currency != "" {
+		b.WriteString(fmt.Sprintf("    [%s]%-10s[-]  [%s]%s[-]\n",
+			colorSecondary, "Balance:", colorPrimary, formatMoney(dim.Balance, dim.Currency)))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	// 配额型（现有进度条逻辑不变）。
 	pct := dim.PercentUsed
 	bar := renderBar(pct, barWidth)
 	pctStr := "N/A"
@@ -266,4 +274,9 @@ func currencySymbol(currency string) string {
 	default:
 		return ""
 	}
+}
+
+// formatMoney 余额详情格式（2 位小数）。
+func formatMoney(balance float64, currency string) string {
+	return fmt.Sprintf("%s%.2f", currencySymbol(currency), balance)
 }

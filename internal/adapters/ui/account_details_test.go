@@ -17,6 +17,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/maybewaityou/fleetboard/internal/core/domain"
 )
 
 // TestBasicInfoLine 验证键值行含 key 与 value。
@@ -75,5 +77,34 @@ func TestRenderBar_FullCells(t *testing.T) {
 	}
 	if got := renderBar(95, 4); !strings.Contains(got, "["+colorRed+"]") {
 		t.Errorf("95%% bar should be red: %q", got)
+	}
+}
+
+// TestFormatMoney 验证余额详情格式（2 位小数）。
+func TestFormatMoney(t *testing.T) {
+	if got := formatMoney(49.58894, "CNY"); got != "¥49.59" {
+		t.Errorf("formatMoney(49.58894,CNY) = %q, want ¥49.59", got)
+	}
+	if got := formatMoney(3.0, "USD"); got != "$3.00" {
+		t.Errorf("formatMoney(3.0,USD) = %q, want $3.00", got)
+	}
+}
+
+// TestRenderDimensionBalance 验证余额型维度：显示 Balance 行，不画进度条（无 █/░/N/A%）。
+func TestRenderDimensionBalance(t *testing.T) {
+	dim := domain.UsageDimension{Name: "可用余额", Balance: 49.58894, Currency: "CNY", PercentUsed: -1}
+	got := renderDimension(dim)
+
+	if !strings.Contains(got, "可用余额") {
+		t.Errorf("should contain dim name, got: %q", got)
+	}
+	if !strings.Contains(got, "¥49.59") {
+		t.Errorf("should contain Balance ¥49.59, got: %q", got)
+	}
+	if strings.Contains(got, "█") || strings.Contains(got, "░") {
+		t.Errorf("balance dim should NOT render progress bar, got: %q", got)
+	}
+	if strings.Contains(got, "N/A") {
+		t.Errorf("balance dim should NOT show N/A percent, got: %q", got)
 	}
 }
