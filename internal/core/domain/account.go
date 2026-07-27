@@ -39,4 +39,8 @@ type Account struct {
 	BaseURL  string `yaml:"base_url,omitempty"` // 可选，覆盖默认
 	TokenEnv string `yaml:"token_env"`          // 环境变量名，token 从此读
 	Pinned   bool   `yaml:"pinned,omitempty"`   // 置顶标记；UI 置顶排序 + 📌 marker
+
+	// new-api 原生层凭证：当前仅 newapi provider 使用（omitempty，其他 provider 无感）。
+	AccessTokenEnv string `yaml:"access_token_env,omitempty"` // 存 access_token 的环境变量名
+	UserID         string `yaml:"user_id,omitempty"`          // new-api 用户 ID，作 New-Api-User header
 }

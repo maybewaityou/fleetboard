@@ -45,6 +45,19 @@ type ProviderUsage struct {
 	Endpoint  string // 刷新接口路径
 	PlanLevel string // 套餐等级：GLM data.level；MiniMax 无
 	Model     string // 模型：MiniMax model；GLM 无
+
+	// 近窗口消耗摘要（adapter 填充，UI 读取）。nil = 该 provider 无此数据。
+	Recent *RecentUsage
+}
+
+// RecentUsage 是近窗口消耗摘要（余额型 provider 的补充信息）。
+// nil 表示该 provider 无此数据（UI 不渲染 Recent 区块）；零值结构体表示"拉到了但全是 0"。
+type RecentUsage struct {
+	Window7d  float64 // 近7天消耗（美元）
+	Window30d float64 // 近30天消耗（美元）
+	RPM       int     // 实时每分钟请求数
+	TPM       int     // 实时每分钟 token 数
+	Currency  string  // "USD"
 }
 
 // UsageDimension 是单个额度维度（一个窗口/一档配额）。

@@ -46,3 +46,23 @@ func TestSelectPrimaryEmptyDimensionsReturnsNil(t *testing.T) {
 		t.Fatalf("want nil Primary when no dimensions, got %+v", u.Primary)
 	}
 }
+
+// TestRecentUsageNilDefault 验证 ProviderUsage.Recent 默认 nil（UI 据此跳过区块）。
+func TestRecentUsageNilDefault(t *testing.T) {
+	var u ProviderUsage
+	if u.Recent != nil {
+		t.Errorf("Recent should default to nil, got %+v", u.Recent)
+	}
+}
+
+// TestAccountNewFields 验证 new-api 凭证字段可构造。
+func TestAccountNewFields(t *testing.T) {
+	acc := Account{
+		Provider:       "newapi",
+		AccessTokenEnv: "NEWAPI_AT",
+		UserID:         "16002",
+	}
+	if acc.AccessTokenEnv != "NEWAPI_AT" || acc.UserID != "16002" {
+		t.Fatalf("new credential fields not set: %+v", acc)
+	}
+}
