@@ -79,8 +79,13 @@ func TestPickByQuota(t *testing.T) {
 		pct  float64
 		want string
 	}{
-		{0, colorGreen}, {69, colorGreen}, {70, colorYellow},
-		{89, colorYellow}, {90, colorYellow}, {91, colorRed}, {120, colorRed},
+		{0, colorGreen},
+		{69, colorGreen},
+		{70, colorYellow},
+		{89, colorYellow},
+		{90, colorYellow},
+		{91, colorRed},
+		{120, colorRed},
 	}
 	for _, c := range cases {
 		if got := pickByQuota(tc, c.pct); got != c.want {
@@ -96,8 +101,13 @@ func TestPickByBalance(t *testing.T) {
 		bal  float64
 		want string
 	}{
-		{100, colorGreen}, {10, colorGreen}, {9.99, colorYellow},
-		{1, colorYellow}, {0.99, colorRed}, {0, colorRed}, {-5, colorRed},
+		{100, colorGreen},
+		{10, colorGreen},
+		{9.99, colorYellow},
+		{1, colorYellow},
+		{0.99, colorRed},
+		{0, colorRed},
+		{-5, colorRed},
 	}
 	for _, c := range cases {
 		if got := pickByBalance(tc, c.bal); got != c.want {
