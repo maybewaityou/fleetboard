@@ -48,6 +48,11 @@ type ProviderUsage struct {
 
 	// 近窗口消耗摘要（adapter 填充，UI 读取）。nil = 该 provider 无此数据。
 	Recent *RecentUsage
+
+	// sub2api API Key 状态与过期（其他 provider 零值/nil=无）。
+	APIKeyStatus    string
+	ExpiresAt       *time.Time
+	DaysUntilExpiry int
 }
 
 // RecentUsage 是近窗口消耗摘要（余额型 provider 的补充信息）。
@@ -57,7 +62,17 @@ type RecentUsage struct {
 	Window30d float64 // 近30天消耗（美元）
 	RPM       int     // 实时每分钟请求数
 	TPM       int     // 实时每分钟 token 数
-	Currency  string  // "USD"
+
+	// 今日/累计统计（sub2api usage.today/total 填充；其他 provider 零值=无）。
+	TodayCost     float64
+	TotalCost     float64
+	TodayTokens   int64
+	TotalTokens   int64
+	TodayRequests int64
+	TotalRequests int64
+	AvgDurationMs int64
+
+	Currency string // "USD"
 }
 
 // UsageDimension 是单个额度维度（一个窗口/一档配额）。
@@ -75,6 +90,12 @@ type UsageDimension struct {
 	// Currency 为 "CNY"/"USD"。配额型两者均零值。判断余额型用 Currency != ""。
 	Balance  float64
 	Currency string
+
+	// 金额型配额窗口（USD）：sub2api 的 rate_limits 与订阅日/周/月限额。非零时 renderDimension
+	// 走金额配额分支（显示 $used/$limit + 进度条）；token 型 provider 不填，零值跳过。
+	// 金额剩余复用 Balance 字段（Balance = MoneyLimit - MoneyUsed）。
+	MoneyLimit float64
+	MoneyUsed  float64
 }
 
 // SelectPrimary 把 PercentUsed 最大的有效维度设为 Primary（最值得警惕的一档）。
