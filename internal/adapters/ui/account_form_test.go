@@ -83,3 +83,54 @@ func TestAccountFormPrefill(t *testing.T) {
 		t.Errorf("BaseURL not prefilled: %q", f.text(afFieldBaseURL))
 	}
 }
+
+// TestAccountFormSubmitNewapi newapi 必填 AccessTokenEnv + UserID（TokenEnv 可空）。
+func TestAccountFormSubmitNewapi(t *testing.T) {
+	f := NewAccountForm()
+	f.input(afFieldLabel).SetText("kuaipao")
+	f.providerDropDown().SetCurrentOption(5) // newapi（providerOptions 第 6 项，idx=5）
+	f.input(afFieldAccessTokenEnv).SetText("NEWAPI_AT")
+	f.input(afFieldUserID).SetText("16002")
+
+	var got domain.Account
+	called := false
+	f.OnSubmit(func(acc domain.Account) { got = acc; called = true })
+	f.submit()
+
+	if !called {
+		t.Fatal("submit should fire for valid newapi (AccessTokenEnv+UserID)")
+	}
+	if got.AccessTokenEnv != "NEWAPI_AT" || got.UserID != "16002" {
+		t.Fatalf("newapi creds not captured: %+v", got)
+	}
+}
+
+// TestAccountFormSubmitNewapiRejectsMissing newapi 缺凭证不触发 submit。
+func TestAccountFormSubmitNewapiRejectsMissing(t *testing.T) {
+	f := NewAccountForm()
+	f.input(afFieldLabel).SetText("kuaipao")
+	f.providerDropDown().SetCurrentOption(5) // newapi
+	f.input(afFieldAccessTokenEnv).SetText("NEWAPI_AT")
+	// UserID 留空
+	called := false
+	f.OnSubmit(func(domain.Account) { called = true })
+	f.submit()
+	if called {
+		t.Fatal("submit must not fire when newapi UserID missing")
+	}
+}
+
+// TestAccountFormPrefillNewapi 验证 Prefill 回填 new-api 凭证字段。
+func TestAccountFormPrefillNewapi(t *testing.T) {
+	f := NewAccountForm()
+	f.Prefill(domain.Account{
+		Provider: "newapi", Label: "l", BaseURL: "http://b",
+		AccessTokenEnv: "NEWAPI_AT", UserID: "16002",
+	})
+	if f.text(afFieldAccessTokenEnv) != "NEWAPI_AT" {
+		t.Errorf("AccessTokenEnv not prefilled: %q", f.text(afFieldAccessTokenEnv))
+	}
+	if f.text(afFieldUserID) != "16002" {
+		t.Errorf("UserID not prefilled: %q", f.text(afFieldUserID))
+	}
+}

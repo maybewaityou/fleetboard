@@ -29,6 +29,8 @@ const (
 	afFieldProvider
 	afFieldBaseURL
 	afFieldTokenEnv
+	afFieldAccessTokenEnv // new-api 原生层 access_token 环境变量名
+	afFieldUserID         // new-api 用户 ID
 )
 
 // providerOptions 是 Provider 下拉的可选项（与 cmd/main 注册的 adapter 对应）。
@@ -36,10 +38,12 @@ var providerOptions = []string{"glm", "minimax", "kimi", "deepseek", "sub2api", 
 
 // 各字段 placeholder。
 const (
-	phLabel    = "e.g. GLM main"
-	phProvider = "Select provider"
-	phBaseURL  = "leave empty for default"
-	phTokenEnv = "e.g. GLM_API_KEY"
+	phLabel          = "e.g. GLM main"
+	phProvider       = "Select provider"
+	phBaseURL        = "leave empty for default"
+	phTokenEnv       = "e.g. GLM_API_KEY"
+	phAccessTokenEnv = "new-api: e.g. NEWAPI_AT"
+	phUserID         = "new-api user id, e.g. 16002"
 )
 
 // AccountForm 是新增/编辑账号的模态表单（仿 lazytmux session_multifield_form）。
@@ -62,6 +66,8 @@ func NewAccountForm() *AccountForm {
 	f.form.AddDropDown("Provider:", providerOptions, 0, nil)
 	f.form.AddInputField("BaseURL:", "", 0, nil, nil)
 	f.form.AddInputField("TokenEnv:", "", 0, nil, nil)
+	f.form.AddInputField("AccessTokenEnv:", "", 0, nil, nil)
+	f.form.AddInputField("UserID:", "", 0, nil, nil)
 	// 标签对齐 lazytmux（colorAccent 蓝）——补上当初"仿 lazytmux"漏掉的 SetLabelColor，
 	// 否则标签走 tview 默认 SecondaryTextColor（colorSecondary 灰）。
 	f.form.SetLabelColor(tcell.GetColor(colorAccent))
@@ -74,6 +80,8 @@ func NewAccountForm() *AccountForm {
 	f.providerDropDown().SetCurrentOption(-1)
 	f.input(afFieldBaseURL).SetPlaceholder(phBaseURL).SetPlaceholderTextColor(tcell.GetColor(colorSecondary))
 	f.input(afFieldTokenEnv).SetPlaceholder(phTokenEnv).SetPlaceholderTextColor(tcell.GetColor(colorSecondary))
+	f.input(afFieldAccessTokenEnv).SetPlaceholder(phAccessTokenEnv).SetPlaceholderTextColor(tcell.GetColor(colorSecondary))
+	f.input(afFieldUserID).SetPlaceholder(phUserID).SetPlaceholderTextColor(tcell.GetColor(colorSecondary))
 
 	f.form.SetInputCapture(func(e *tcell.EventKey) *tcell.EventKey {
 		switch e.Key() {
@@ -115,23 +123,40 @@ func (f *AccountForm) Prefill(acc domain.Account) {
 	f.input(afFieldLabel).SetText(acc.Label)
 	f.input(afFieldBaseURL).SetText(acc.BaseURL)
 	f.input(afFieldTokenEnv).SetText(acc.TokenEnv)
+	f.input(afFieldAccessTokenEnv).SetText(acc.AccessTokenEnv)
+	f.input(afFieldUserID).SetText(acc.UserID)
 }
 
-// submit 校验并提交。Label/Provider/TokenEnv 必填；ID 不在此设置
-// （新增时由 cmd/main 用 domain.GenerateAccountID 生成）。
+// submit 校验并提交。必填项按 provider 分支：
+//   - newapi：AccessTokenEnv + UserID（TokenEnv 不再使用）
+//   - 其他：TokenEnv（沿用旧规则）
+//
+// ID 不在此设置（新增时由 cmd/main 用 domain.GenerateAccountID 生成）。
 func (f *AccountForm) submit() {
 	label := f.text(afFieldLabel)
 	_, provider := f.providerDropDown().GetCurrentOption()
-	if label == "" || provider == "" || f.text(afFieldTokenEnv) == "" {
+	if label == "" || provider == "" {
 		return
 	}
+	acc := domain.Account{
+		Provider:       provider,
+		Label:          label,
+		BaseURL:        f.text(afFieldBaseURL),
+		TokenEnv:       f.text(afFieldTokenEnv),
+		AccessTokenEnv: f.text(afFieldAccessTokenEnv),
+		UserID:         f.text(afFieldUserID),
+	}
+	if provider == "newapi" {
+		if acc.AccessTokenEnv == "" || acc.UserID == "" {
+			return
+		}
+	} else {
+		if acc.TokenEnv == "" {
+			return
+		}
+	}
 	if f.onSubmit != nil {
-		f.onSubmit(domain.Account{
-			Provider: provider,
-			Label:    label,
-			BaseURL:  f.text(afFieldBaseURL),
-			TokenEnv: f.text(afFieldTokenEnv),
-		})
+		f.onSubmit(acc)
 	}
 }
 
