@@ -15,6 +15,7 @@
 package ui
 
 import (
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -435,4 +436,28 @@ func TestDisplayDimension_FallbackPrimary(t *testing.T) {
 	if got := displayPercent(u); got != -1 {
 		t.Errorf("balance displayPercent = %v, want -1", got)
 	}
+}
+
+// TestAccountList_NoHorizontalPadding 守护选中高亮撑满整行的契约：List 左右 border
+// padding 必须为 0（padding 会把 SetHighlightFullLine 的高亮向内顶缩 1 格）。
+// 视觉呼吸由 Flex 3:2 列比提供，不再用内部 padding 占位。
+func TestAccountList_NoHorizontalPadding(t *testing.T) {
+	al := NewAccountList()
+	left, right := boxHorizontalPadding(t, al)
+	if left != 0 || right != 0 {
+		t.Errorf("horizontal border padding = (left=%d, right=%d), want (0,0) so the selection highlight fills the line", left, right)
+	}
+}
+
+// boxHorizontalPadding 通过反射读 tview.Box 的私有 paddingLeft/paddingRight：
+// tview v0.42 未导出 GetBorderPadding，故用反射访问 padding 字段。
+// 链路 AccountList → 匿名 *tview.List → 匿名 *tview.Box。
+func boxHorizontalPadding(t *testing.T, al *AccountList) (left, right int) {
+	t.Helper()
+	v := reflect.ValueOf(al).Elem()       // AccountList
+	list := v.FieldByName("List").Elem()  // tview.List
+	box := list.FieldByName("Box").Elem() // tview.Box
+	left = int(box.FieldByName("paddingLeft").Int())
+	right = int(box.FieldByName("paddingRight").Int())
+	return left, right
 }

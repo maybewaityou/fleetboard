@@ -51,7 +51,8 @@ func (al *AccountList) build() {
 		SetTitleAlign(tview.AlignCenter).
 		SetBorderColor(tcell.GetColor(colorBorder)).
 		SetTitleColor(tcell.GetColor(colorTitle)).
-		SetBorderPadding(0, 0, 1, 1) // 左右各 1 空格：条目与选中高亮不再紧贴边框
+		SetBorderPadding(0, 0, 0, 0) // 左右 padding 归零：选中高亮（SetHighlightFullLine）顶满边框；
+		// 行首视觉缩进由 formatAccountLine 的 pin 占位（  /📌，显示宽 2）提供，内容不贴边。
 	al.List.
 		SetSelectedBackgroundColor(tcell.GetColor(colorSelected)).
 		SetSelectedTextColor(tcell.GetColor(colorPrimary)).
