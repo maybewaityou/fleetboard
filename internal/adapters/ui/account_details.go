@@ -57,11 +57,9 @@ func (d *AccountDetails) Render(u domain.VendorUsage) {
 	d.SetTextAlign(tview.AlignLeft)
 	var b strings.Builder
 
-	// Header: label (accent bold) + vendor chip (same pill style as the list row).
-	b.WriteString("[" + colorAccent + "::b]" + u.Label + "[-]  ")
-	b.WriteString(fmt.Sprintf("[black:%s] %s [-:-:-]", colorAccent, u.Vendor))
+	// Header: label only (accent bold) + 可选 err ⚠（vendor chip 移除，信息下放到 Basic Info）。
+	b.WriteString("[" + colorAccent + "::b]" + u.Label + "[-]")
 	if u.Err != nil {
-		// Surface the failure without hiding the dimensions below it.
 		msg := u.Err.Error()
 		if msg == "" {
 			msg = "fetch failed"
@@ -70,38 +68,49 @@ func (d *AccountDetails) Render(u domain.VendorUsage) {
 	}
 	b.WriteString("\n\n")
 
+	// Basic Info：账号基本信息（adapter 填充）。Plan 优先 PlanLevel(GLM)，否则 Model(MiniMax)。
+	b.WriteString("[" + colorTitle + "::b]Basic Info[-]\n")
+	plan := firstNonEmpty(u.PlanLevel, u.Model, "—")
+	window := "—"
+	if !u.WindowStart.IsZero() && !u.WindowEnd.IsZero() {
+		window = u.WindowStart.Local().Format("2006-01-02 15:04") + " → " + u.WindowEnd.Local().Format("2006-01-02 15:04")
+	}
+	refreshed := "—"
+	if !u.FetchedAt.IsZero() {
+		refreshed = u.FetchedAt.Local().Format("2006-01-02 15:04")
+	}
+	b.WriteString(basicInfoLine("Plan", plan))
+	b.WriteString(basicInfoLine("Vendor", u.Vendor))
+	b.WriteString(basicInfoLine("BaseURL", firstNonEmpty(u.BaseURL, "—")))
+	b.WriteString(basicInfoLine("Endpoint", firstNonEmpty(u.Endpoint, "—")))
+	b.WriteString(basicInfoLine("Window", window))
+	b.WriteString(basicInfoLine("Refreshed", refreshed))
+
+	// Quota Dimensions：各维度单独行（renderDimension 内 name|bar|pct 固定宽对齐）。
+	b.WriteString("\n[" + colorTitle + "::b]Quota Dimensions[-]\n")
 	if len(u.Dimensions) == 0 {
 		b.WriteString("[" + colorSecondary + "]no quota dimensions[-]\n")
-	} else {
-		b.WriteString("[" + colorTitle + "::b]Quota Dimensions[-]\n")
-		for _, dim := range u.Dimensions {
-			b.WriteString(renderDimension(dim))
-		}
 	}
-
-	// Footer: "拉取 <time> · <source>". Source comes from the primary dimension
-	// when available (the one the list percent reflects), else the first dim.
-	src := ""
-	if u.Primary != nil {
-		src = u.Primary.Source
-	} else if len(u.Dimensions) > 0 {
-		src = u.Dimensions[0].Source
-	}
-	if !u.FetchedAt.IsZero() || src != "" {
-		b.WriteString("\n")
-		parts := make([]string, 0, 2)
-		if !u.FetchedAt.IsZero() {
-			parts = append(parts, "["+colorSecondary+"]拉取 "+u.FetchedAt.Format("15:04")+"[-]")
-		} else {
-			parts = append(parts, "["+colorSecondary+"]拉取 —[-]")
-		}
-		if src != "" {
-			parts = append(parts, "["+colorSecondary+"]"+src+"[-]")
-		}
-		b.WriteString(strings.Join(parts, " ["+colorSecondary+"]·[-] ") + "\n")
+	for _, dim := range u.Dimensions {
+		b.WriteString(renderDimension(dim))
 	}
 
 	d.SetText(b.String())
+}
+
+// firstNonEmpty 返回第一个非空字符串，都空则返回最后一个（作 fallback）。
+func firstNonEmpty(s ...string) string {
+	for _, v := range s {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// basicInfoLine 渲染 "  key(pad10): value\n"（键 secondary 色，冒号 pad 对齐；值 primary 色）。
+func basicInfoLine(key, val string) string {
+	return fmt.Sprintf("  [%s]%-10s[-]  [%s]%s[-]\n", colorSecondary, key+":", colorPrimary, val)
 }
 
 // RenderEmpty swaps the pane for a centered placeholder when nothing is
