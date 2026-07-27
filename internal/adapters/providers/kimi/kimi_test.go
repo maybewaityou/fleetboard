@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/maybewaityou/fleetboard/internal/core/domain"
 )
@@ -54,9 +55,10 @@ func TestCurrencyFor(t *testing.T) {
 //	(c) 维度 Balance = available_balance，Currency = CNY（base 是本地 server → CNY），PercentUsed = -1
 //	(d) Primary 指向该维度
 func TestFetchUsageGolden(t *testing.T) {
-	var gotAuth, gotPath string
+	var gotAuth, gotCT, gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
+		gotCT = r.Header.Get("Content-Type")
 		gotPath = r.URL.Path
 		fmt.Fprint(w, goldenPayload)
 	}))
@@ -70,9 +72,12 @@ func TestFetchUsageGolden(t *testing.T) {
 		t.Fatalf("unexpected err: %v", err)
 	}
 
-	// (a)(b) 鉴权 + 路径
+	// (a)(b)(c) 鉴权 + Content-Type + 路径
 	if gotAuth != "Bearer KEY123" {
 		t.Errorf("Authorization = %q, want %q (MUST have Bearer prefix)", gotAuth, "Bearer KEY123")
+	}
+	if gotCT != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", gotCT)
 	}
 	if gotPath != "/v1/users/me/balance" {
 		t.Errorf("path = %q, want /v1/users/me/balance", gotPath)
@@ -117,6 +122,9 @@ func TestFetchUsageGolden(t *testing.T) {
 	if u.FetchedAt.IsZero() {
 		t.Error("FetchedAt should be set")
 	}
+	if u.FetchedAt.After(time.Now()) {
+		t.Error("FetchedAt must not be in the future")
+	}
 }
 
 // TestFetchUsageNonZeroCode 验证 code!=0 被拦截（不只看 HTTP 200）。
@@ -155,5 +163,55 @@ func TestFetchUsageServerDown(t *testing.T) {
 	}
 	if u.AccountID != "k" || u.Vendor != "kimi" || u.Label != "l" {
 		t.Errorf("error-path fields wrong: %+v", u)
+	}
+}
+
+// TestFetchUsageNon200 验证非 2xx HTTP 状态（如 401）被状态守卫拦截：
+// 即使 body 是合法 JSON 错误体（缺 error 字段），也不会被静默解码。
+func TestFetchUsageNon200(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"error":{"message":"invalid api key"}}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("MOONSHOT_API_KEY", "BADKEY")
+	acc := domain.Account{ID: "k", Vendor: "kimi", Label: "l", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err == nil {
+		t.Fatal("expected error for HTTP 401, got nil")
+	}
+	if u.Err == nil {
+		t.Error("u.Err should be set on non-2xx status")
+	}
+	// 关键：不能静默把缺字段的错误体当成「错误响应」。
+	// Dimensions 应为空（解码从未发生），Primary 也应为 nil。
+	if len(u.Dimensions) != 0 {
+		t.Errorf("Dimensions should be empty on HTTP error, got %+v", u.Dimensions)
+	}
+	if u.Primary != nil {
+		t.Errorf("Primary should be nil on HTTP error, got %+v", u.Primary)
+	}
+	// 错误路径下仍填充账号字段
+	if u.AccountID != "k" || u.Vendor != "kimi" || u.Label != "l" {
+		t.Errorf("error-path VendorUsage fields wrong: %+v", u)
+	}
+}
+
+// TestFetchUsageBadJSON 验证解码失败返回错误且填充 u.Err。
+func TestFetchUsageBadJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `not-json`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("MOONSHOT_API_KEY", "K")
+	acc := domain.Account{ID: "k", Vendor: "kimi", Label: "l", TokenEnv: "MOONSHOT_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err == nil {
+		t.Fatal("expected error for bad JSON, got nil")
+	}
+	if u.Err == nil {
+		t.Error("u.Err should be set on decode error")
 	}
 }
