@@ -17,7 +17,6 @@ package ui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -58,10 +57,9 @@ func (d *AccountDetails) Render(u domain.VendorUsage) {
 	d.SetTextAlign(tview.AlignLeft)
 	var b strings.Builder
 
-	// Header: label (accent bold) + vendor in brand color (no background chip).
-	_, fg := VendorTag(u.Vendor)
+	// Header: label (accent bold) + vendor chip (same pill style as the list row).
 	b.WriteString("[" + colorAccent + "::b]" + u.Label + "[-]  ")
-	b.WriteString(fmt.Sprintf("[%s]%s[-]", fg, u.Vendor))
+	b.WriteString(fmt.Sprintf("[black:%s] %s [-:-:-]", colorAccent, u.Vendor))
 	if u.Err != nil {
 		// Surface the failure without hiding the dimensions below it.
 		msg := u.Err.Error()
@@ -134,7 +132,7 @@ func renderDimension(dim domain.UsageDimension) string {
 
 	reset := "—"
 	if !dim.ResetsAt.IsZero() {
-		reset = humanizeReset(dim.ResetsAt)
+		reset = dim.ResetsAt.Local().Format("2006-01-02 15:04")
 	}
 
 	name := dim.Name
@@ -187,24 +185,4 @@ func compactInt(n int64, unit string) string {
 		s += unit
 	}
 	return s
-}
-
-// humanizeReset renders a reset time as a short relative duration ("in 2h",
-// "in 3d") or "—" for the zero value. Bounds the magnitude so a far-future
-// monthly reset does not overflow the line.
-func humanizeReset(t time.Time) string {
-	if t.IsZero() {
-		return "—"
-	}
-	d := time.Until(t)
-	switch {
-	case d <= 0:
-		return "soon"
-	case d < time.Hour:
-		return fmt.Sprintf("in %dm", int(d.Minutes()))
-	case d < 48*time.Hour:
-		return fmt.Sprintf("in %dh", int(d.Hours()))
-	default:
-		return fmt.Sprintf("in %dd", int(d.Hours())/24)
-	}
 }
