@@ -64,7 +64,9 @@ func NewAccountForm() *AccountForm {
 		case tcell.KeyEnter:
 			// 焦点在 Vendor DropDown 时放行 Enter，让 tview 内部确认下拉选项
 			// （否则 Enter 被全局拦截成 submit，下拉无法选定 —— #4 bug 根因）。
-			if f.form.GetFocusedItemIndex() == afFieldVendor {
+			// GetFocusedItemIndex 返回 (formItem, button)，只看 formItem。
+			item, _ := f.form.GetFocusedItemIndex()
+			if item == afFieldVendor {
 				return e
 			}
 			f.submit()
