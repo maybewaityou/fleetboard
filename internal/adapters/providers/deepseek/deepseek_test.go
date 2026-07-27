@@ -176,8 +176,30 @@ func TestFetchUsageServerDown(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when server down")
 	}
+	if u.Err == nil {
+		t.Error("u.Err should be set on transport error")
+	}
 	if u.AccountID != "d" || u.Vendor != "deepseek" || u.Label != "DeepSeek" {
 		t.Errorf("error-path fields wrong: %+v", u)
+	}
+}
+
+// TestFetchUsageEmptyBalanceInfos 验证 is_available=true 但 balance_infos 为空数组时
+// 触发契约守卫：返回错误且 u.Err 被填充（参见 deepseek.go 空数组分支）。
+func TestFetchUsageEmptyBalanceInfos(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"is_available":true,"balance_infos":[]}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("DEEPSEEK_API_KEY", "K")
+	acc := domain.Account{ID: "d", Vendor: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err == nil {
+		t.Fatal("expected error for empty balance_infos, got nil")
+	}
+	if u.Err == nil {
+		t.Error("u.Err should be set on empty balance_infos")
 	}
 }
 

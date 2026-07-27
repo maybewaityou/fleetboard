@@ -161,6 +161,9 @@ func TestFetchUsageServerDown(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when server down")
 	}
+	if u.Err == nil {
+		t.Error("u.Err should be set on transport error")
+	}
 	if u.AccountID != "k" || u.Vendor != "kimi" || u.Label != "l" {
 		t.Errorf("error-path fields wrong: %+v", u)
 	}
