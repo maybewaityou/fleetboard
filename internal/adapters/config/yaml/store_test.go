@@ -29,7 +29,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	s := yaml.NewStore(path)
-	orig := domain.Config{Accounts: []domain.Account{{ID: "g", Vendor: "glm", Label: "智谱", TokenEnv: "GLM_API_KEY"}}}
+	orig := domain.Config{Accounts: []domain.Account{{ID: "g", Provider: "glm", Label: "智谱", TokenEnv: "GLM_API_KEY"}}}
 	if err := s.Save(orig); err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestSaveRollsBackups(t *testing.T) {
 		cfg := domain.Config{
 			Accounts: []domain.Account{{
 				ID:       fmt.Sprintf("a%d", i),
-				Vendor:   "glm",
+				Provider:   "glm",
 				TokenEnv: "GLM_API_KEY",
 			}},
 		}
@@ -136,7 +136,7 @@ func TestOverwriteResetsPerm(t *testing.T) {
 	if err := os.WriteFile(path+".tmp", []byte("stale"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Save(domain.Config{Accounts: []domain.Account{{ID: "x", Vendor: "glm", TokenEnv: "K"}}}); err != nil {
+	if err := s.Save(domain.Config{Accounts: []domain.Account{{ID: "x", Provider: "glm", TokenEnv: "K"}}}); err != nil {
 		t.Fatal(err)
 	}
 	fi, err := os.Stat(path)

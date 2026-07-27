@@ -21,12 +21,12 @@ import (
 	"github.com/rivo/tview"
 )
 
-func TestVendorTag_KnownVendors(t *testing.T) {
+func TestProviderTag_KnownProviders(t *testing.T) {
 	t.Parallel()
-	// Every entry in vendorColor must match spec §9.2 verbatim, so adding a
-	// new vendor without updating this table fails loudly.
+	// Every entry in providerColor must match spec §9.2 verbatim, so adding a
+	// new provider without updating this table fails loudly.
 	cases := []struct {
-		vendor         string
+		provider         string
 		wantBG, wantFG string
 	}{
 		{"glm", "#7C3AED", "#FFFFFF"},
@@ -40,26 +40,26 @@ func TestVendorTag_KnownVendors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		tc := tc
-		t.Run(tc.vendor, func(t *testing.T) {
+		t.Run(tc.provider, func(t *testing.T) {
 			t.Parallel()
-			bg, fg := VendorTag(tc.vendor)
+			bg, fg := ProviderTag(tc.provider)
 			if bg != tc.wantBG || fg != tc.wantFG {
-				t.Fatalf("VendorTag(%q) = (%q, %q); want (%q, %q)",
-					tc.vendor, bg, fg, tc.wantBG, tc.wantFG)
+				t.Fatalf("ProviderTag(%q) = (%q, %q); want (%q, %q)",
+					tc.provider, bg, fg, tc.wantBG, tc.wantFG)
 			}
 		})
 	}
 }
 
-func TestVendorTag_Unknown(t *testing.T) {
+func TestProviderTag_Unknown(t *testing.T) {
 	t.Parallel()
-	// Empty string, never-heard-of vendor, and case-mismatched slugs (the map
+	// Empty string, never-heard-of provider, and case-mismatched slugs (the map
 	// is case-sensitive by design) all must fall back to the gray pair.
 	for _, v := range []string{"", "unknown", "GLM", "OpenAI", "claude"} {
-		bg, fg := VendorTag(v)
-		if bg != unknownVendorBG || fg != unknownVendorFG {
-			t.Fatalf("VendorTag(%q) = (%q, %q); want (%q, %q)",
-				v, bg, fg, unknownVendorBG, unknownVendorFG)
+		bg, fg := ProviderTag(v)
+		if bg != unknownProviderBG || fg != unknownProviderFG {
+			t.Fatalf("ProviderTag(%q) = (%q, %q); want (%q, %q)",
+				v, bg, fg, unknownProviderBG, unknownProviderFG)
 		}
 	}
 }
@@ -101,7 +101,7 @@ func TestStatusColor(t *testing.T) {
 func TestInitializeTheme_AppliesTokyoNight(t *testing.T) {
 	// NOTE: deliberately NOT t.Parallel() — this test mutates the process-global
 	// tview.Styles table, which would race with any other ui test that touches
-	// Styles. The other StatusColor/VendorTag tests are pure and stay parallel.
+	// Styles. The other StatusColor/ProviderTag tests are pure and stay parallel.
 	// initializeTheme mutates tview.Styles (global by tview's design) and must
 	// return a usable Application. We assert non-nil and spot-check one style
 	// field to catch a regression where someone drops a setter.

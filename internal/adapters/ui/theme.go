@@ -19,10 +19,10 @@ import (
 	"github.com/rivo/tview"
 )
 
-// vendorColor maps a vendor slug (domain.Account.Vendor) to its brand colors as
+// providerColor maps a provider slug (domain.Account.Provider) to its brand colors as
 // {bg, fg}, used by the platform tag rendered in the list view (spec §9.2).
-// Vendors absent from this map fall back to unknownVendorBG/FG via VendorTag.
-var vendorColor = map[string][2]string{ // {bg, fg}
+// Providers absent from this map fall back to unknownProviderBG/FG via ProviderTag.
+var providerColor = map[string][2]string{ // {bg, fg}
 	"glm":       {"#7C3AED", "#FFFFFF"},
 	"minimax":   {"#EF4444", "#FFFFFF"},
 	"kimi":      {"#06B6D4", "#001016"},
@@ -33,25 +33,25 @@ var vendorColor = map[string][2]string{ // {bg, fg}
 	"deepseek":  {"#2563EB", "#FFFFFF"},
 }
 
-// Unknown-vendor fallback colors: a neutral gray that keeps the tag readable
-// even when an account references a vendor fleetboard has never heard of.
+// Unknown-provider fallback colors: a neutral gray that keeps the tag readable
+// even when an account references a provider fleetboard has never heard of.
 const (
-	unknownVendorBG = "#6B7280"
-	unknownVendorFG = "#FFFFFF"
+	unknownProviderBG = "#6B7280"
+	unknownProviderFG = "#FFFFFF"
 )
 
-// VendorTag returns the {bg, fg} brand colors for a vendor slug. The caller
-// feeds the pair straight into tview's [fg:bg] color syntax. Unknown vendors
+// ProviderTag returns the {bg, fg} brand colors for a provider slug. The caller
+// feeds the pair straight into tview's [fg:bg] color syntax. Unknown providers
 // resolve to a gray tag so the list never renders a broken/empty color block.
 //
-// Vendor matching is exact and case-sensitive: "GLM" is not "glm". Account
-// vendors are authored by the config layer, which normalizes to the lowercase
-// slugs in vendorColor, so callers should not need to lowercase themselves.
-func VendorTag(vendor string) (bg, fg string) {
-	if c, ok := vendorColor[vendor]; ok {
+// Provider matching is exact and case-sensitive: "GLM" is not "glm". Account
+// providers are authored by the config layer, which normalizes to the lowercase
+// slugs in providerColor, so callers should not need to lowercase themselves.
+func ProviderTag(provider string) (bg, fg string) {
+	if c, ok := providerColor[provider]; ok {
 		return c[0], c[1]
 	}
-	return unknownVendorBG, unknownVendorFG
+	return unknownProviderBG, unknownProviderFG
 }
 
 // StatusColor maps a usage percentage to the status indicator color (spec §9.2):

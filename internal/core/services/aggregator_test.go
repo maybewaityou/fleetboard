@@ -38,13 +38,13 @@ func TestFetchOneSuccess(t *testing.T) {
 	)
 	agg := NewAggregator(reg)
 
-	acc := domain.Account{ID: "g1", Vendor: "glm", Label: "main"}
+	acc := domain.Account{ID: "g1", Provider: "glm", Label: "main"}
 	u := agg.FetchOne(context.Background(), acc)
 
 	if u.Err != nil {
 		t.Fatalf("unexpected err: %v", u.Err)
 	}
-	if u.AccountID != "g1" || u.Vendor != "glm" || u.Label != "main" {
+	if u.AccountID != "g1" || u.Provider != "glm" || u.Label != "main" {
 		t.Fatalf("account meta not propagated: %+v", u)
 	}
 	if u.Primary == nil || u.Primary.Name != "weekly" || u.Primary.PercentUsed != 88 {
@@ -55,36 +55,36 @@ func TestFetchOneSuccess(t *testing.T) {
 	}
 }
 
-func TestFetchOneUnknownVendor(t *testing.T) {
+func TestFetchOneUnknownProvider(t *testing.T) {
 	// Registry 里没有 "kimi" 的 adapter。
 	reg := providers.NewRegistry(mock.New("glm", nil, nil))
 	agg := NewAggregator(reg)
 
-	acc := domain.Account{ID: "k1", Vendor: "kimi", Label: "personal"}
+	acc := domain.Account{ID: "k1", Provider: "kimi", Label: "personal"}
 	u := agg.FetchOne(context.Background(), acc)
 
 	if u.Err == nil {
-		t.Fatal("expected ErrUnknownVendor, got nil")
+		t.Fatal("expected ErrUnknownProvider, got nil")
 	}
-	if !errors.Is(u.Err, ErrUnknownVendor) {
-		t.Fatalf("err should wrap ErrUnknownVendor, got %v", u.Err)
+	if !errors.Is(u.Err, ErrUnknownProvider) {
+		t.Fatalf("err should wrap ErrUnknownProvider, got %v", u.Err)
 	}
 	// 元信息仍应回填，便于 UI 展示该账号（即使拉取失败）。
-	if u.AccountID != "k1" || u.Vendor != "kimi" || u.Label != "personal" {
-		t.Fatalf("account meta not backfilled on unknown vendor: %+v", u)
+	if u.AccountID != "k1" || u.Provider != "kimi" || u.Label != "personal" {
+		t.Fatalf("account meta not backfilled on unknown provider: %+v", u)
 	}
 	if u.Primary != nil {
-		t.Fatalf("Primary must be nil when vendor unknown, got %+v", u.Primary)
+		t.Fatalf("Primary must be nil when provider unknown, got %+v", u.Primary)
 	}
 	if len(u.Dimensions) != 0 {
-		t.Fatalf("Dimensions must be empty when vendor unknown, got %d", len(u.Dimensions))
+		t.Fatalf("Dimensions must be empty when provider unknown, got %d", len(u.Dimensions))
 	}
 	if u.FetchedAt.IsZero() {
-		t.Error("FetchedAt should be set even on unknown-vendor path")
+		t.Error("FetchedAt should be set even on unknown-provider path")
 	}
 }
 
-// 单账号失败不丢弃 u：provider 返回 err 时，VendorUsage（含 Dimensions/Primary）仍透传。
+// 单账号失败不丢弃 u：provider 返回 err 时，ProviderUsage（含 Dimensions/Primary）仍透传。
 func TestFetchOneErrPassthroughKeepsDimensions(t *testing.T) {
 	wantErr := errors.New("boom")
 	reg := providers.NewRegistry(
@@ -92,7 +92,7 @@ func TestFetchOneErrPassthroughKeepsDimensions(t *testing.T) {
 	)
 	agg := NewAggregator(reg)
 
-	u := agg.FetchOne(context.Background(), domain.Account{ID: "m1", Vendor: "minimax", Label: "dev"})
+	u := agg.FetchOne(context.Background(), domain.Account{ID: "m1", Provider: "minimax", Label: "dev"})
 
 	if u.Err == nil || !errors.Is(u.Err, wantErr) {
 		t.Fatalf("u.Err = %v, want %v", u.Err, wantErr)
@@ -126,8 +126,8 @@ func TestFetchAllIsolatesFailures(t *testing.T) {
 		mock.New("minimax", nil, errors.New("boom")),
 	)
 	accs := []domain.Account{
-		{ID: "g", Vendor: "glm", Label: "GLM"},
-		{ID: "m", Vendor: "minimax", Label: "MiniMax"},
+		{ID: "g", Provider: "glm", Label: "GLM"},
+		{ID: "m", Provider: "minimax", Label: "MiniMax"},
 	}
 
 	got := NewAggregator(reg).FetchAll(context.Background(), accs)
@@ -149,7 +149,7 @@ func TestFetchAllIsolatesFailures(t *testing.T) {
 }
 
 func TestFetchAllPreservesOrder(t *testing.T) {
-	// 6 个不同 vendor，确保并发写回 out[i] 不乱序。
+	// 6 个不同 provider，确保并发写回 out[i] 不乱序。
 	dims := func(name string, pct float64) []domain.UsageDimension {
 		return []domain.UsageDimension{{Name: name, PercentUsed: pct}}
 	}
@@ -162,15 +162,15 @@ func TestFetchAllPreservesOrder(t *testing.T) {
 		mock.New("f", dims("f", 60), nil),
 	)
 	accs := []domain.Account{
-		{ID: "1", Vendor: "a"}, {ID: "2", Vendor: "b"}, {ID: "3", Vendor: "c"},
-		{ID: "4", Vendor: "d"}, {ID: "5", Vendor: "e"}, {ID: "6", Vendor: "f"},
+		{ID: "1", Provider: "a"}, {ID: "2", Provider: "b"}, {ID: "3", Provider: "c"},
+		{ID: "4", Provider: "d"}, {ID: "5", Provider: "e"}, {ID: "6", Provider: "f"},
 	}
 
 	got := NewAggregator(reg).FetchAll(context.Background(), accs)
 
 	for i, want := range []string{"a", "b", "c", "d", "e", "f"} {
-		if got[i].Vendor != want {
-			t.Errorf("result[%d].Vendor = %q, want %q (order broken)", i, got[i].Vendor, want)
+		if got[i].Provider != want {
+			t.Errorf("result[%d].Provider = %q, want %q (order broken)", i, got[i].Provider, want)
 		}
 		if got[i].Primary == nil || got[i].Primary.Name != want {
 			t.Errorf("result[%d].Primary mismatch: %+v", i, got[i].Primary)
@@ -178,28 +178,28 @@ func TestFetchAllPreservesOrder(t *testing.T) {
 	}
 }
 
-// 并发安全性 + 单账号失败完全隔离：混合 success/fail/unknown-vendor，
+// 并发安全性 + 单账号失败完全隔离：混合 success/fail/unknown-provider，
 // 每个失败只影响自己，不 panic、不阻断其他账号。配合 -race 验证无数据竞争。
 //
-// 注意：每个并发账号用 *独立 vendor*（独立 mock 实例）。这不是 aggregator 的限制——
-// aggregator 支持同 vendor 多账号并发——而是规避 mock.Provider.FetchCount 的非原子自增
-// （mock 已知限制，真实 adapter 无此问题）。同 vendor 并发安全性由 HighConcurrency 测试
-// （64 独立 vendor）+ PreservesOrder 已充分覆盖。
+// 注意：每个并发账号用 *独立 provider*（独立 mock 实例）。这不是 aggregator 的限制——
+// aggregator 支持同 provider 多账号并发——而是规避 mock.Provider.FetchCount 的非原子自增
+// （mock 已知限制，真实 adapter 无此问题）。同 provider 并发安全性由 HighConcurrency 测试
+// （64 独立 provider）+ PreservesOrder 已充分覆盖。
 func TestFetchAllMixedIsolationConcurrent(t *testing.T) {
 	reg := providers.NewRegistry(
 		mock.New("ok1", []domain.UsageDimension{{Name: "5h", PercentUsed: 41}}, nil),
 		mock.New("ok2", []domain.UsageDimension{{Name: "weekly", PercentUsed: 55}}, nil),
 		mock.New("fail1", []domain.UsageDimension{{Name: "x", PercentUsed: 7}}, errors.New("nope")),
 		mock.New("fail2", []domain.UsageDimension{{Name: "y", PercentUsed: 8}}, errors.New("boom")),
-		// "ghost1"/"ghost2" 故意不登记 → unknown vendor 路径
+		// "ghost1"/"ghost2" 故意不登记 → unknown provider 路径
 	)
 	accs := []domain.Account{
-		{ID: "ok-1", Vendor: "ok1", Label: "ok one"},
-		{ID: "fail-1", Vendor: "fail1", Label: "fail one"},
-		{ID: "ghost-1", Vendor: "ghost1", Label: "ghost one"},
-		{ID: "ok-2", Vendor: "ok2", Label: "ok two"},
-		{ID: "ghost-2", Vendor: "ghost2", Label: "ghost two"},
-		{ID: "fail-2", Vendor: "fail2", Label: "fail two"},
+		{ID: "ok-1", Provider: "ok1", Label: "ok one"},
+		{ID: "fail-1", Provider: "fail1", Label: "fail one"},
+		{ID: "ghost-1", Provider: "ghost1", Label: "ghost one"},
+		{ID: "ok-2", Provider: "ok2", Label: "ok two"},
+		{ID: "ghost-2", Provider: "ghost2", Label: "ghost two"},
+		{ID: "fail-2", Provider: "fail2", Label: "fail two"},
 	}
 
 	got := NewAggregator(reg).FetchAll(context.Background(), accs)
@@ -213,14 +213,14 @@ func TestFetchAllMixedIsolationConcurrent(t *testing.T) {
 			t.Errorf("[%d] AccountID = %q, want %q", i, u.AccountID, acc.ID)
 		}
 		switch {
-		case acc.Vendor == "ok1" || acc.Vendor == "ok2":
+		case acc.Provider == "ok1" || acc.Provider == "ok2":
 			if u.Err != nil {
 				t.Errorf("[%d] ok account should be clean, got %v", i, u.Err)
 			}
 			if u.Primary == nil {
 				t.Errorf("[%d] ok Primary missing: %+v", i, u.Primary)
 			}
-		case acc.Vendor == "fail1" || acc.Vendor == "fail2":
+		case acc.Provider == "fail1" || acc.Provider == "fail2":
 			if u.Err == nil {
 				t.Errorf("[%d] fail account should carry err", i)
 			}
@@ -229,8 +229,8 @@ func TestFetchAllMixedIsolationConcurrent(t *testing.T) {
 				t.Errorf("[%d] fail Dimensions should be retained, got %d", i, len(u.Dimensions))
 			}
 		default: // ghost*
-			if !errors.Is(u.Err, ErrUnknownVendor) {
-				t.Errorf("[%d] ghost should be ErrUnknownVendor, got %v", i, u.Err)
+			if !errors.Is(u.Err, ErrUnknownProvider) {
+				t.Errorf("[%d] ghost should be ErrUnknownProvider, got %v", i, u.Err)
 			}
 			if u.Primary != nil {
 				t.Errorf("[%d] ghost Primary must be nil, got %+v", i, u.Primary)
@@ -240,7 +240,7 @@ func TestFetchAllMixedIsolationConcurrent(t *testing.T) {
 }
 
 // 大量并发 goroutine：验证 out[i] 写入无竞争、无 panic、顺序保持。
-// 每个账号不同 vendor → 不同 mock 实例，避开 mock.FetchCount 的非原子写（mock 已知限制）。
+// 每个账号不同 provider → 不同 mock 实例，避开 mock.FetchCount 的非原子写（mock 已知限制）。
 func TestFetchAllHighConcurrencyRaceSafety(t *testing.T) {
 	const n = 64
 	ps := make([]ports.UsageProvider, n)
@@ -250,7 +250,7 @@ func TestFetchAllHighConcurrencyRaceSafety(t *testing.T) {
 		ps[i] = mock.New(v, []domain.UsageDimension{
 			{Name: "d", PercentUsed: float64(i % 100)},
 		}, nil)
-		accs[i] = domain.Account{ID: "a" + strconv.Itoa(i), Vendor: v}
+		accs[i] = domain.Account{ID: "a" + strconv.Itoa(i), Provider: v}
 	}
 	reg := providers.NewRegistry(ps...)
 
@@ -275,7 +275,7 @@ func TestNewAggregatorAcceptsCustomLookup(t *testing.T) {
 	mp := mock.New("glm", []domain.UsageDimension{{Name: "5h", PercentUsed: 9}}, nil)
 	lookup := &stubLookup{p: mp, has: map[string]bool{"glm": true}}
 
-	u := NewAggregator(lookup).FetchOne(context.Background(), domain.Account{ID: "x", Vendor: "glm"})
+	u := NewAggregator(lookup).FetchOne(context.Background(), domain.Account{ID: "x", Provider: "glm"})
 
 	if u.Err != nil {
 		t.Fatalf("unexpected err: %v", u.Err)
@@ -283,9 +283,9 @@ func TestNewAggregatorAcceptsCustomLookup(t *testing.T) {
 	if u.Primary == nil || u.Primary.PercentUsed != 9 {
 		t.Fatalf("custom lookup result wrong: %+v", u.Primary)
 	}
-	// 未登记 vendor 走 unknown 路径。
-	u2 := NewAggregator(lookup).FetchOne(context.Background(), domain.Account{ID: "y", Vendor: "zzz"})
-	if !errors.Is(u2.Err, ErrUnknownVendor) {
+	// 未登记 provider 走 unknown 路径。
+	u2 := NewAggregator(lookup).FetchOne(context.Background(), domain.Account{ID: "y", Provider: "zzz"})
+	if !errors.Is(u2.Err, ErrUnknownProvider) {
 		t.Fatalf("custom lookup unknown path: %v", u2.Err)
 	}
 }
@@ -295,8 +295,8 @@ type stubLookup struct {
 	has map[string]bool
 }
 
-func (s *stubLookup) Get(vendor string) (ports.UsageProvider, bool) {
-	if s.has[vendor] {
+func (s *stubLookup) Get(provider string) (ports.UsageProvider, bool) {
+	if s.has[provider] {
 		return s.p, true
 	}
 	return nil, false

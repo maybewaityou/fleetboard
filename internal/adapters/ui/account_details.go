@@ -30,7 +30,7 @@ import (
 const barWidth = 20
 
 // AccountDetails is the right-hand pane showing the selected account's header
-// (label + vendor tag + optional error) followed by one progress-bar line per
+// (label + provider tag + optional error) followed by one progress-bar line per
 // quota dimension (GLM exposes several tiers), and a trailing "拉取" footer
 // carrying the fetch timestamp and data source. It is the fleetboard analogue
 // of lazytmux's SessionDetails.
@@ -55,11 +55,11 @@ func NewAccountDetails() *AccountDetails {
 // Render fills the pane. If the account has any dimensions they are all listed
 // (one bar each); per the task-7 err-transparency contract, a non-nil Err does
 // NOT suppress them — the error is surfaced as a red ⚠ in the header instead.
-func (d *AccountDetails) Render(u domain.VendorUsage) {
+func (d *AccountDetails) Render(u domain.ProviderUsage) {
 	d.SetTextAlign(tview.AlignLeft)
 	var b strings.Builder
 
-	// Header: label only (accent bold) + 可选 err ⚠（vendor chip 移除，信息下放到 Basic Info）。
+	// Header: label only (accent bold) + 可选 err ⚠（provider chip 移除，信息下放到 Basic Info）。
 	b.WriteString("[" + colorAccent + "::b]" + u.Label + "[-]")
 	if u.Err != nil {
 		msg := u.Err.Error()
@@ -79,7 +79,7 @@ func (d *AccountDetails) Render(u domain.VendorUsage) {
 	}
 	// 字段顺序参考 lazytmux：主体标识在前，时间次之，Pinned（布尔状态）置末。
 	b.WriteString(basicInfoLine("Plan", plan))
-	b.WriteString(vendorInfoLine(u.Vendor))
+	b.WriteString(providerInfoLine(u.Provider))
 	b.WriteString(basicInfoLine("BaseURL", firstNonEmpty(u.BaseURL, "—")))
 	b.WriteString(basicInfoLine("Endpoint", firstNonEmpty(u.Endpoint, "—")))
 	b.WriteString(basicInfoLine("Refreshed", refreshed))
@@ -125,14 +125,14 @@ func basicInfoLine(key, val string) string {
 	return fmt.Sprintf("  [%s]%-10s[-]  [%s]%s[-]\n", colorSecondary, key+":", colorPrimary, val)
 }
 
-// vendorInfoLine 渲染 Basic Info 中的 Vendor 行：key 用与 basicInfoLine 一致的
+// providerInfoLine 渲染 Basic Info 中的 Provider 行：key 用与 basicInfoLine 一致的
 // %-10s 对齐，value 则用与列表条目完全一致的 chip（accent 背景、黑字）而非纯文本。
-func vendorInfoLine(vendor string) string {
-	v := vendor
+func providerInfoLine(provider string) string {
+	v := provider
 	if v == "" {
 		v = "—"
 	}
-	return fmt.Sprintf("  [%s]%-10s[-]  [black:%s] %s [-:-:-]\n", colorSecondary, "Vendor:", colorAccent, v)
+	return fmt.Sprintf("  [%s]%-10s[-]  [black:%s] %s [-:-:-]\n", colorSecondary, "Provider:", colorAccent, v)
 }
 
 // RenderEmpty swaps the pane for a centered placeholder when nothing is

@@ -76,8 +76,8 @@ func TestRender_AllCacheWriteIsMarshalledToMainLoop(t *testing.T) {
 		go func(n int) {
 			defer wg.Done()
 			for j := 0; j < iters; j++ {
-				tui.Render([]domain.VendorUsage{
-					{AccountID: fmt.Sprintf("a-%d-%d", n, j), Vendor: "glm", Label: fmt.Sprintf("acct-%d-%d", n, j)},
+				tui.Render([]domain.ProviderUsage{
+					{AccountID: fmt.Sprintf("a-%d-%d", n, j), Provider: "glm", Label: fmt.Sprintf("acct-%d-%d", n, j)},
 				})
 			}
 		}(w)

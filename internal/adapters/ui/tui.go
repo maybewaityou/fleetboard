@@ -39,7 +39,7 @@ var _ ports.View = (*TUI)(nil)
 // RefreshAllFunc is the shape of the "refresh all" callback (R). It returns the
 // full post-refresh dataset so the TUI can re-render atomically; a nil return is
 // treated as "no change". Task 12 wires this to services.Aggregator.FetchAll.
-type RefreshAllFunc func() []domain.VendorUsage
+type RefreshAllFunc func() []domain.ProviderUsage
 
 // RefreshSelectedFunc is the shape of the "refresh selected" callback (r). It
 // receives the currently-selected AccountID and returns the full post-refresh
@@ -52,7 +52,7 @@ type RefreshAllFunc func() []domain.VendorUsage
 // without adding a lock — the same discipline Render already follows by
 // marshalling its writes through queueDraw. Task 12 wires this to
 // services.Aggregator.FetchOne.
-type RefreshSelectedFunc func(accountID string) []domain.VendorUsage
+type RefreshSelectedFunc func(accountID string) []domain.ProviderUsage
 
 // Config parameterizes the TUI. RefreshSelected/RefreshAll are optional: when
 // nil, r/R flash a "not wired" status instead of no-op-ing silently, so a
@@ -61,16 +61,16 @@ type Config struct {
 	Logger          *zap.SugaredLogger
 	Version         string
 	Commit          string
-	InitialData     []domain.VendorUsage
+	InitialData     []domain.ProviderUsage
 	RefreshSelected RefreshSelectedFunc // r — refresh the currently-selected account
 	RefreshAll      RefreshAllFunc      // R — refresh every account
 
 	// CRUD 回调（a/e/d）。均返回更新后的完整数据集，TUI 直接 Render，不碰 store（六边形）。
-	OnSaveAccount   func(domain.Account) []domain.VendorUsage                // a — 新增账号
-	OnDeleteAccount func(id string) []domain.VendorUsage                     // d — 删除账号
-	OnEditAccount   func(id string, acc domain.Account) []domain.VendorUsage // e — 编辑账号
+	OnSaveAccount   func(domain.Account) []domain.ProviderUsage                // a — 新增账号
+	OnDeleteAccount func(id string) []domain.ProviderUsage                     // d — 删除账号
+	OnEditAccount   func(id string, acc domain.Account) []domain.ProviderUsage // e — 编辑账号
 	OnLoadAccount   func(id string) (domain.Account, bool)                   // 编辑时反查账号预填表单
-	OnTogglePin     func(id string) []domain.VendorUsage                     // p — 置顶/取消置顶
+	OnTogglePin     func(id string) []domain.ProviderUsage                     // p — 置顶/取消置顶
 }
 
 // TUI is the runnable tview application. It implements ports.View (Run + Render).
@@ -93,7 +93,7 @@ type TUI struct {
 
 	// allCache is the last dataset Render gave us; the search box and list both
 	// read from it (filtered by visibleUsages) so search and refresh compose.
-	allCache []domain.VendorUsage
+	allCache []domain.ProviderUsage
 	// selectedID is preserved across refreshes so the user's selection survives
 	// a re-render (mirrors lazytmux's SelectByName-after-UpdateSessions flow).
 	selectedID string
@@ -101,11 +101,11 @@ type TUI struct {
 	refreshSelected RefreshSelectedFunc
 	refreshAll      RefreshAllFunc
 
-	onSaveAccount   func(domain.Account) []domain.VendorUsage
-	onDeleteAccount func(id string) []domain.VendorUsage
-	onEditAccount   func(id string, acc domain.Account) []domain.VendorUsage
+	onSaveAccount   func(domain.Account) []domain.ProviderUsage
+	onDeleteAccount func(id string) []domain.ProviderUsage
+	onEditAccount   func(id string, acc domain.Account) []domain.ProviderUsage
 	onLoadAccount   func(id string) (domain.Account, bool)
-	onTogglePin     func(id string) []domain.VendorUsage
+	onTogglePin     func(id string) []domain.ProviderUsage
 
 	// statusTimer reverts a transient footer message back to the default hints.
 	statusTimer *time.Timer
@@ -185,7 +185,7 @@ func (t *TUI) Run() error {
 //
 // The queueDraw == nil branch covers pre-Run() callers (e.g. unit tests that
 // drive the TUI synchronously): there is no main loop yet, so we paint inline.
-func (t *TUI) Render(usages []domain.VendorUsage) {
+func (t *TUI) Render(usages []domain.ProviderUsage) {
 	if t.queueDraw == nil {
 		// Run() hasn't started yet (e.g. unit test); paint synchronously.
 		t.applyDataset(usages)
@@ -204,7 +204,7 @@ func (t *TUI) Render(usages []domain.VendorUsage) {
 // and freezes the UI (the 'p' freeze). Here we mutate directly; tview redraws
 // automatically once the handler returns (Run's event loop calls a.draw() right
 // after input capture / InputHandler returns).
-func (t *TUI) applyDataset(usages []domain.VendorUsage) {
+func (t *TUI) applyDataset(usages []domain.ProviderUsage) {
 	t.allCache = usages
 	t.applyCacheToViews()
 }
@@ -290,7 +290,7 @@ func (t *TUI) applyCacheToViews() {
 
 // handleSelectionChange fires when the list cursor moves. We record the id (so a
 // later refresh restores it) and paint the details pane.
-func (t *TUI) handleSelectionChange(u domain.VendorUsage) {
+func (t *TUI) handleSelectionChange(u domain.ProviderUsage) {
 	t.selectedID = u.AccountID
 	t.details.Render(u)
 }
@@ -315,17 +315,17 @@ func (t *TUI) handleSearchInput(_ string) {
 }
 
 // visibleUsages applies the current search query (case-insensitive substring on
-// label or vendor) to allCache. Empty query = everything.
-func (t *TUI) visibleUsages() []domain.VendorUsage {
+// label or provider) to allCache. Empty query = everything.
+func (t *TUI) visibleUsages() []domain.ProviderUsage {
 	q := t.currentSearchQuery()
 	if q == "" {
 		return t.allCache
 	}
 	needle := strings.ToLower(q)
-	out := make([]domain.VendorUsage, 0, len(t.allCache))
+	out := make([]domain.ProviderUsage, 0, len(t.allCache))
 	for _, u := range t.allCache {
 		if strings.Contains(strings.ToLower(u.Label), needle) ||
-			strings.Contains(strings.ToLower(u.Vendor), needle) {
+			strings.Contains(strings.ToLower(u.Provider), needle) {
 			out = append(out, u)
 		}
 	}
@@ -335,7 +335,7 @@ func (t *TUI) visibleUsages() []domain.VendorUsage {
 // visibleSorted 返回过滤后的可见账号并按置顶优先稳定排序（pinned 排前，其余保持原序）。
 // 供所有渲染路径（applyCacheToViews/handleSearchInput）共用，确保 pin 状态变化或搜索
 // 过滤后，置顶项始终钉在列表顶部。
-func (t *TUI) visibleSorted() []domain.VendorUsage {
+func (t *TUI) visibleSorted() []domain.ProviderUsage {
 	visible := t.visibleUsages()
 	sort.SliceStable(visible, func(i, j int) bool {
 		return visible[i].Pinned && !visible[j].Pinned

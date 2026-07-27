@@ -31,9 +31,9 @@ import (
 //   - start_time = 1711843200000（2024-03-31 00:00:00 UTC，毫秒）
 const goldenPayload = `{"usagePercent":12,"model_remains":[{"model":"abab6","start_time":1711843200000,"end_time":1711929600000}]}`
 
-func TestVendorReturnsMiniMax(t *testing.T) {
-	if got := New().Vendor(); got != "minimax" {
-		t.Fatalf("Vendor() = %q, want minimax", got)
+func TestProviderReturnsMiniMax(t *testing.T) {
+	if got := New().Provider(); got != "minimax" {
+		t.Fatalf("Provider() = %q, want minimax", got)
 	}
 }
 
@@ -53,7 +53,7 @@ func TestFetchUsageGolden(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("MINIMAX_TOKEN_PLAN_KEY", "KEY123")
-	acc := domain.Account{ID: "m", Vendor: "minimax", Label: "MiniMax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "m", Provider: "minimax", Label: "MiniMax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
 
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err != nil {
@@ -111,8 +111,8 @@ func TestFetchUsageGolden(t *testing.T) {
 	if u.FetchedAt.After(time.Now()) {
 		t.Error("FetchedAt must not be in the future")
 	}
-	if u.AccountID != "m" || u.Vendor != "minimax" || u.Label != "MiniMax" {
-		t.Errorf("VendorUsage top fields wrong: %+v", u)
+	if u.AccountID != "m" || u.Provider != "minimax" || u.Label != "MiniMax" {
+		t.Errorf("ProviderUsage top fields wrong: %+v", u)
 	}
 	// Basic Info 字段（adapter 填充）
 	if u.Model != "abab6" {
@@ -136,7 +136,7 @@ func TestFetchUsageSnakeCaseField(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("MINIMAX_TOKEN_PLAN_KEY", "K")
-	acc := domain.Account{ID: "m", Vendor: "minimax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "m", Provider: "minimax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -157,7 +157,7 @@ func TestFetchUsageEmptyRemains(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("MINIMAX_TOKEN_PLAN_KEY", "K")
-	acc := domain.Account{ID: "m", Vendor: "minimax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "m", Provider: "minimax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -173,7 +173,7 @@ func TestFetchUsageEmptyRemains(t *testing.T) {
 	}
 }
 
-// TestFetchUsageServerDown 验证 HTTP 层错误被透传，且 VendorUsage 仍填充账号字段
+// TestFetchUsageServerDown 验证 HTTP 层错误被透传，且 ProviderUsage 仍填充账号字段
 // （与 GLM / mock provider 行为一致，便于上层展示局部信息）。
 func TestFetchUsageServerDown(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +182,7 @@ func TestFetchUsageServerDown(t *testing.T) {
 	srv.Close() // 立即关闭，下次请求必然失败
 
 	t.Setenv("MINIMAX_TOKEN_PLAN_KEY", "K")
-	acc := domain.Account{ID: "m", Vendor: "minimax", Label: "l", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "m", Provider: "minimax", Label: "l", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error when server is down, got nil")
@@ -191,8 +191,8 @@ func TestFetchUsageServerDown(t *testing.T) {
 		t.Error("u.Err should be set on transport error")
 	}
 	// 错误路径下仍填充账号字段
-	if u.AccountID != "m" || u.Vendor != "minimax" || u.Label != "l" {
-		t.Errorf("error-path VendorUsage fields wrong: %+v", u)
+	if u.AccountID != "m" || u.Provider != "minimax" || u.Label != "l" {
+		t.Errorf("error-path ProviderUsage fields wrong: %+v", u)
 	}
 }
 
@@ -207,7 +207,7 @@ func TestFetchUsageNon200(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("MINIMAX_TOKEN_PLAN_KEY", "BADKEY")
-	acc := domain.Account{ID: "m", Vendor: "minimax", Label: "l", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "m", Provider: "minimax", Label: "l", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error for HTTP 401, got nil")
@@ -224,8 +224,8 @@ func TestFetchUsageNon200(t *testing.T) {
 		t.Errorf("Primary should be nil on HTTP error, got %+v", u.Primary)
 	}
 	// 错误路径下仍填充账号字段
-	if u.AccountID != "m" || u.Vendor != "minimax" || u.Label != "l" {
-		t.Errorf("error-path VendorUsage fields wrong: %+v", u)
+	if u.AccountID != "m" || u.Provider != "minimax" || u.Label != "l" {
+		t.Errorf("error-path ProviderUsage fields wrong: %+v", u)
 	}
 }
 
@@ -237,7 +237,7 @@ func TestFetchUsageBadJSON(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("MINIMAX_TOKEN_PLAN_KEY", "K")
-	acc := domain.Account{ID: "m", Vendor: "minimax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "m", Provider: "minimax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error for bad JSON, got nil")

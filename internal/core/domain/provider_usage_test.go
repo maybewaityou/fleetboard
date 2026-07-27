@@ -33,7 +33,7 @@ func TestUsageDimensionBalanceFields(t *testing.T) {
 	}
 
 	// SelectPrimary 跳过 PercentUsed<0 的维度：纯余额型维度集合 → Primary 为 nil
-	u := VendorUsage{Dimensions: []UsageDimension{dim}}
+	u := ProviderUsage{Dimensions: []UsageDimension{dim}}
 	u.SelectPrimary()
 	if u.Primary != nil {
 		t.Errorf("SelectPrimary should skip PercentUsed<0 balance dim, got Primary=%+v", u.Primary)

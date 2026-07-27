@@ -25,12 +25,12 @@ const (
 	ResetCustom    ResetPolicy = "custom"
 )
 
-// VendorUsage 是一次拉取的结果。一个账号可有多个额度维度。
+// ProviderUsage 是一次拉取的结果。一个账号可有多个额度维度。
 // Basic Info 字段（BaseURL/Endpoint/PlanLevel/Model）由 adapter 从响应/请求中填充，
-// 供 details 页面展示账号基本信息；不同 vendor 填不同子集（零值=无）。
-type VendorUsage struct {
+// 供 details 页面展示账号基本信息；不同 provider 填不同子集（零值=无）。
+type ProviderUsage struct {
 	AccountID  string
-	Vendor     string
+	Provider     string
 	Label      string
 	Dimensions []UsageDimension
 	Primary    *UsageDimension
@@ -58,7 +58,7 @@ type UsageDimension struct {
 	Unit        string
 	Source      string
 
-	// 余额型 vendor 专用（Kimi/DeepSeek）：Balance 是当前余额（元/美元），
+	// 余额型 provider 专用（Kimi/DeepSeek）：Balance 是当前余额（元/美元），
 	// Currency 为 "CNY"/"USD"。配额型两者均零值。判断余额型用 Currency != ""。
 	Balance  float64
 	Currency string
@@ -66,7 +66,7 @@ type UsageDimension struct {
 
 // SelectPrimary 把 PercentUsed 最大的有效维度设为 Primary（最值得警惕的一档）。
 // PercentUsed < 0 的维度视为无效（N/A）会被跳过；若全部无效则 Primary 为 nil。
-func (u *VendorUsage) SelectPrimary() {
+func (u *ProviderUsage) SelectPrimary() {
 	var best *UsageDimension
 	for i := range u.Dimensions {
 		d := &u.Dimensions[i]

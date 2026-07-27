@@ -32,9 +32,9 @@ const goldenPayload = `{"code":200,"data":{"level":"pro","limits":[
   {"type":"TOKENS_LIMIT","percentage":53,"nextResetTime":1775606400000},
   {"type":"TIME_LIMIT","percentage":7,"usage":1000,"currentValue":72,"remaining":928,"nextResetTime":1777593600000}]}}`
 
-func TestVendorReturnsGLM(t *testing.T) {
-	if got := New().Vendor(); got != "glm" {
-		t.Fatalf("Vendor() = %q, want glm", got)
+func TestProviderReturnsGLM(t *testing.T) {
+	if got := New().Provider(); got != "glm" {
+		t.Fatalf("Provider() = %q, want glm", got)
 	}
 }
 
@@ -55,7 +55,7 @@ func TestFetchUsageGolden(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("GLM_API_KEY", "KEY123")
-	acc := domain.Account{ID: "g", Vendor: "glm", Label: "智谱", TokenEnv: "GLM_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "g", Provider: "glm", Label: "智谱", TokenEnv: "GLM_API_KEY", BaseURL: srv.URL}
 
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err != nil {
@@ -132,9 +132,9 @@ func TestFetchUsageGolden(t *testing.T) {
 		t.Error("FetchedAt must not be in the future")
 	}
 
-	// VendorUsage 顶层账号字段
-	if u.AccountID != "g" || u.Vendor != "glm" || u.Label != "智谱" {
-		t.Errorf("VendorUsage top fields wrong: %+v", u)
+	// ProviderUsage 顶层账号字段
+	if u.AccountID != "g" || u.Provider != "glm" || u.Label != "智谱" {
+		t.Errorf("ProviderUsage top fields wrong: %+v", u)
 	}
 	// Basic Info 字段（adapter 填充）
 	if u.PlanLevel != "pro" {
@@ -161,7 +161,7 @@ func TestFetchUsageUnsortedTokens(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("GLM_API_KEY", "K")
-	acc := domain.Account{ID: "g", Vendor: "glm", TokenEnv: "GLM_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "g", Provider: "glm", TokenEnv: "GLM_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -182,7 +182,7 @@ func TestFetchUsageUnsortedTokens(t *testing.T) {
 	}
 }
 
-// TestFetchUsageNon200Code 验证非 200 响应码返回错误，且 VendorUsage 仍填充账号字段。
+// TestFetchUsageNon200Code 验证非 200 响应码返回错误，且 ProviderUsage 仍填充账号字段。
 func TestFetchUsageNon200Code(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"code":401,"data":{}}`)
@@ -190,7 +190,7 @@ func TestFetchUsageNon200Code(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("GLM_API_KEY", "K")
-	acc := domain.Account{ID: "g", Vendor: "glm", Label: "l", TokenEnv: "GLM_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "g", Provider: "glm", Label: "l", TokenEnv: "GLM_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error for non-200 code, got nil")
@@ -199,8 +199,8 @@ func TestFetchUsageNon200Code(t *testing.T) {
 		t.Error("u.Err should be set on error path")
 	}
 	// 错误路径下仍填充账号字段（与 mock provider 行为一致，便于上层展示局部信息）
-	if u.AccountID != "g" || u.Vendor != "glm" || u.Label != "l" {
-		t.Errorf("error-path VendorUsage fields wrong: %+v", u)
+	if u.AccountID != "g" || u.Provider != "glm" || u.Label != "l" {
+		t.Errorf("error-path ProviderUsage fields wrong: %+v", u)
 	}
 }
 
@@ -212,7 +212,7 @@ func TestFetchUsageServerDown(t *testing.T) {
 	srv.Close() // 立即关闭，下次请求必然失败
 
 	t.Setenv("GLM_API_KEY", "K")
-	acc := domain.Account{ID: "g", Vendor: "glm", TokenEnv: "GLM_API_KEY", BaseURL: srv.URL}
+	acc := domain.Account{ID: "g", Provider: "glm", TokenEnv: "GLM_API_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err == nil {
 		t.Fatal("expected error when server is down, got nil")

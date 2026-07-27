@@ -27,14 +27,14 @@ import (
 )
 
 // AccountList wraps tview.List and keeps the slice of usages behind it so a
-// selection index can be resolved back to a domain.VendorUsage. It is the
+// selection index can be resolved back to a domain.ProviderUsage. It is the
 // fleetboard analogue of lazytmux's SessionList, but each row is a single line
-// (no mini progress bar) carrying: label, vendor tag, primary percent, status
+// (no mini progress bar) carrying: label, provider tag, primary percent, status
 // dot. See formatAccountLine for the exact row grammar.
 type AccountList struct {
 	*tview.List
-	usages            []domain.VendorUsage
-	onSelectionChange func(domain.VendorUsage)
+	usages            []domain.ProviderUsage
+	onSelectionChange func(domain.ProviderUsage)
 	onReturnToSearch  func()
 }
 
@@ -81,7 +81,7 @@ func (al *AccountList) build() {
 // UpdateUsages re-renders the list. The cursor is reset to the first item, so a
 // refresh-driven caller should follow up with SelectByAccountID to preserve the
 // user's selection (same flow as lazytmux's UpdateSessions + SelectByName).
-func (al *AccountList) UpdateUsages(usages []domain.VendorUsage) {
+func (al *AccountList) UpdateUsages(usages []domain.ProviderUsage) {
 	al.usages = usages
 	al.List.Clear()
 	for i := range usages {
@@ -92,13 +92,13 @@ func (al *AccountList) UpdateUsages(usages []domain.VendorUsage) {
 	}
 }
 
-// GetSelected resolves the current cursor position to its VendorUsage.
-func (al *AccountList) GetSelected() (domain.VendorUsage, bool) {
+// GetSelected resolves the current cursor position to its ProviderUsage.
+func (al *AccountList) GetSelected() (domain.ProviderUsage, bool) {
 	idx := al.List.GetCurrentItem()
 	if idx >= 0 && idx < len(al.usages) {
 		return al.usages[idx], true
 	}
-	return domain.VendorUsage{}, false
+	return domain.ProviderUsage{}, false
 }
 
 // SelectByAccountID moves the cursor to the first usage with the given account
@@ -113,7 +113,7 @@ func (al *AccountList) SelectByAccountID(id string) {
 	}
 }
 
-func (al *AccountList) OnSelectionChange(fn func(domain.VendorUsage)) *AccountList {
+func (al *AccountList) OnSelectionChange(fn func(domain.ProviderUsage)) *AccountList {
 	al.onSelectionChange = fn
 	return al
 }
@@ -127,7 +127,7 @@ func (al *AccountList) OnReturnToSearch(fn func()) *AccountList {
 // dimension (N/A). -1 is the sentinel StatusColor reads as "gray", so the list
 // dot and details bar both degrade consistently for accounts with no usable
 // data.
-func primaryPercent(u domain.VendorUsage) float64 {
+func primaryPercent(u domain.ProviderUsage) float64 {
 	if u.Primary == nil {
 		return -1
 	}
@@ -136,12 +136,12 @@ func primaryPercent(u domain.VendorUsage) float64 {
 
 // formatAccountLine renders one aligned list row:
 //
-//	<icon> <label pad22>    <vendor chip>    <miniBar8> <pct> <dot>    <lastRefreshed>
+//	<icon> <label pad22>    <provider chip>    <miniBar8> <pct> <dot>    <lastRefreshed>
 //
-// icon = vendor 首字母(品牌色), 与左边框留 1 空格(参考 lazytmux marker 固定列)。
-// vendor 与 miniBar 之间留宽间距；miniBar+pct+dot 紧凑；dot 与 fetched 之间留宽间距。
+// icon = provider 首字母(品牌色), 与左边框留 1 空格(参考 lazytmux marker 固定列)。
+// provider 与 miniBar 之间留宽间距；miniBar+pct+dot 紧凑；dot 与 fetched 之间留宽间距。
 // fetched 是相对时间(humanizeAgo)。label 用 padDisplay(CJK 显示宽度对齐)。
-func formatAccountLine(u domain.VendorUsage) string {
+func formatAccountLine(u domain.ProviderUsage) string {
 	pctStr, dot := "N/A", "○"
 	dotCol := colorGray // N/A 默认灰点
 	if u.Primary != nil && u.Primary.Currency != "" {
@@ -161,11 +161,11 @@ func formatAccountLine(u domain.VendorUsage) string {
 	}
 	pct := primaryPercent(u) // 余额型 PercentUsed=-1 → renderBar(-1,4) 自然灰条
 
-	// icon: vendor 首字母大写, 品牌色（VendorTag 的 fg）。
-	_, iconFg := VendorTag(u.Vendor)
+	// icon: provider 首字母大写, 品牌色（ProviderTag 的 fg）。
+	_, iconFg := ProviderTag(u.Provider)
 	icon := "?"
-	if u.Vendor != "" {
-		icon = strings.ToUpper(u.Vendor[:1])
+	if u.Provider != "" {
+		icon = strings.ToUpper(u.Provider[:1])
 	}
 
 	label := u.Label
@@ -181,12 +181,12 @@ func formatAccountLine(u domain.VendorUsage) string {
 
 	fetched := humanizeAgo(u.FetchedAt)
 
-	// 列布局：pin(2) icon(1) sp | label pad16 | 1sp | vendor chip | 2sp | miniBar4 sp pct(pad4) dot | 4sp | Last Refreshed: fetched
+	// 列布局：pin(2) icon(1) sp | label pad16 | 1sp | provider chip | 2sp | miniBar4 sp pct(pad4) dot | 4sp | Last Refreshed: fetched
 	return fmt.Sprintf("%s [%s]%s[-] %s [black:%s] %-7s [-:-:-]  %s [%s]%-4s[-][%s]%s[-]    [%s]Last Refreshed: %s[-]",
 		pin,
 		iconFg, icon,
 		padDisplay(label, 16),
-		colorAccent, u.Vendor,
+		colorAccent, u.Provider,
 		renderBar(pct, 4),
 		colorPrimary, pctStr,
 		dotCol, dot,

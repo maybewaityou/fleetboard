@@ -25,10 +25,10 @@ import (
 func TestVisibleSorted_PinnedFirst(t *testing.T) {
 	tui := NewTUI(Config{})
 	tui.buildComponents()
-	tui.allCache = []domain.VendorUsage{
-		{AccountID: "a1", Vendor: "glm", Label: "one"},
-		{AccountID: "a2", Vendor: "glm", Label: "two", Pinned: true},
-		{AccountID: "a3", Vendor: "glm", Label: "three"},
+	tui.allCache = []domain.ProviderUsage{
+		{AccountID: "a1", Provider: "glm", Label: "one"},
+		{AccountID: "a2", Provider: "glm", Label: "two", Pinned: true},
+		{AccountID: "a3", Provider: "glm", Label: "three"},
 	}
 
 	got := tui.visibleSorted()
@@ -52,8 +52,8 @@ func TestVisibleSorted_PinnedFirst(t *testing.T) {
 // handler 返回后自动重绘），绝不经 QueueUpdateDraw。
 func TestDoTogglePin_NoQueueDraw(t *testing.T) {
 	tui := NewTUI(Config{
-		OnTogglePin: func(string) []domain.VendorUsage {
-			return []domain.VendorUsage{{AccountID: "a1", Pinned: true, Label: "pinned"}}
+		OnTogglePin: func(string) []domain.ProviderUsage {
+			return []domain.ProviderUsage{{AccountID: "a1", Pinned: true, Label: "pinned"}}
 		},
 	})
 	tui.buildComponents()
@@ -75,9 +75,9 @@ func TestDoTogglePin_NoQueueDraw(t *testing.T) {
 func TestVisibleSorted_NoPinned(t *testing.T) {
 	tui := NewTUI(Config{})
 	tui.buildComponents()
-	tui.allCache = []domain.VendorUsage{
-		{AccountID: "a1", Vendor: "glm", Label: "one"},
-		{AccountID: "a2", Vendor: "glm", Label: "two"},
+	tui.allCache = []domain.ProviderUsage{
+		{AccountID: "a1", Provider: "glm", Label: "one"},
+		{AccountID: "a2", Provider: "glm", Label: "two"},
 	}
 	got := tui.visibleSorted()
 	if got[0].AccountID != "a1" || got[1].AccountID != "a2" {

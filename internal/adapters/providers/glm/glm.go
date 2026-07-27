@@ -27,7 +27,7 @@
 //   - TIME_LIMIT：Name="MCP每月"，Used=currentValue，Limit=usage，Remaining=remaining，
 //     Unit="次"，PercentUsed=percentage。
 //
-// 构造完所有维度后调用 VendorUsage.SelectPrimary()，取 PercentUsed 最大那档作为 Primary。
+// 构造完所有维度后调用 ProviderUsage.SelectPrimary()，取 PercentUsed 最大那档作为 Primary。
 package glm
 
 import (
@@ -77,8 +77,8 @@ func New() *Provider {
 	return &Provider{hc: &http.Client{Timeout: httpTimeout}}
 }
 
-// Vendor 返回厂商标识，对应 domain.Account.Vendor。
-func (p *Provider) Vendor() string { return "glm" }
+// Provider 返回厂商标识，对应 domain.Account.Provider。
+func (p *Provider) Provider() string { return "glm" }
 
 // apiResp 是 GLM 配额接口的响应结构（仅解码需要的字段）。
 type apiResp struct {
@@ -99,12 +99,12 @@ type apiLimit struct {
 	NextResetTime json.Number `json:"nextResetTime"`
 }
 
-// FetchUsage 拉取该账号当前用量，返回多维度 VendorUsage。
-// 出错时 VendorUsage 仍被填充（账号字段 + FetchedAt + Err），便于上层展示局部信息。
-func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.VendorUsage, error) {
-	u := domain.VendorUsage{
+// FetchUsage 拉取该账号当前用量，返回多维度 ProviderUsage。
+// 出错时 ProviderUsage 仍被填充（账号字段 + FetchedAt + Err），便于上层展示局部信息。
+func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.ProviderUsage, error) {
+	u := domain.ProviderUsage{
 		AccountID: acc.ID,
-		Vendor:    "glm",
+		Provider:    "glm",
 		Label:     acc.Label,
 		FetchedAt: time.Now(),
 	}

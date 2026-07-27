@@ -17,7 +17,7 @@ package domain
 import "testing"
 
 func TestSelectPrimaryPicksMaxPercent(t *testing.T) {
-	u := &VendorUsage{Dimensions: []UsageDimension{
+	u := &ProviderUsage{Dimensions: []UsageDimension{
 		{Name: "5h", PercentUsed: 30},
 		{Name: "weekly", PercentUsed: 88},
 		{Name: "mcp", PercentUsed: -1},
@@ -29,7 +29,7 @@ func TestSelectPrimaryPicksMaxPercent(t *testing.T) {
 }
 
 func TestSelectPrimaryAllInvalidReturnsNil(t *testing.T) {
-	u := &VendorUsage{Dimensions: []UsageDimension{
+	u := &ProviderUsage{Dimensions: []UsageDimension{
 		{Name: "5h", PercentUsed: -1},
 		{Name: "monthly", PercentUsed: -1},
 	}}
@@ -40,7 +40,7 @@ func TestSelectPrimaryAllInvalidReturnsNil(t *testing.T) {
 }
 
 func TestSelectPrimaryEmptyDimensionsReturnsNil(t *testing.T) {
-	u := &VendorUsage{}
+	u := &ProviderUsage{}
 	u.SelectPrimary()
 	if u.Primary != nil {
 		t.Fatalf("want nil Primary when no dimensions, got %+v", u.Primary)
