@@ -343,21 +343,21 @@ func TestRenderDimension_NA(t *testing.T) {
 	}
 }
 
-// TestFormatMoneyShort 验证余额短格式：CNY→¥、USD→$、>1000 缩写 k、1 位小数；
-// 负值负号置于符号前（spec §3，-¥50.0 而非 ¥-50.0），含 k 分支。
+// TestFormatMoneyShort 验证余额短格式：CNY→¥、USD→$、>1000 缩写 k、2 位小数；
+// 负值负号置于符号前（spec §3，-¥50.00 而非 ¥-50.00），含 k 分支。
 func TestFormatMoneyShort(t *testing.T) {
 	cases := []struct {
 		balance  float64
 		currency string
 		want     string
 	}{
-		{49.58894, "CNY", "¥49.6"},
-		{3.0, "USD", "$3.0"},
-		{1200.0, "CNY", "¥1.2k"},
-		{0, "CNY", "¥0.0"},
+		{49.58894, "CNY", "¥49.59"},
+		{3.0, "USD", "$3.00"},
+		{1200.0, "CNY", "¥1.20k"},
+		{0, "CNY", "¥0.00"},
 		// M2: 负值 — 负号在符号前，普通与 k 分支各一。
-		{-50.0, "CNY", "-¥50.0"},
-		{-1500.0, "USD", "-$1.5k"},
+		{-50.0, "CNY", "-¥50.00"},
+		{-1500.0, "USD", "-$1.50k"},
 	}
 	for _, tc := range cases {
 		if got := formatMoneyShort(tc.balance, tc.currency); got != tc.want {
@@ -373,8 +373,8 @@ func TestFormatAccountLineBalance(t *testing.T) {
 	u := domain.ProviderUsage{AccountID: "k", Provider: "kimi", Label: "Kimi-主力", Primary: &balDim, Dimensions: []domain.UsageDimension{balDim}}
 	got := formatAccountLine(u)
 
-	if !strings.Contains(got, "¥49.6") {
-		t.Errorf("balance line should contain ¥49.6, got: %q", got)
+	if !strings.Contains(got, "¥49.59") {
+		t.Errorf("balance line should contain ¥49.59, got: %q", got)
 	}
 	if !strings.Contains(got, "["+colorGreen+"]") {
 		t.Errorf("balance>0 should render green dot, got: %q", got)
