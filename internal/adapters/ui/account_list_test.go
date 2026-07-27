@@ -15,9 +15,12 @@
 package ui
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/rivo/tview"
 
 	"github.com/maybewaityou/fleetboard/internal/core/domain"
 )
@@ -170,6 +173,69 @@ func TestFormatAccountLine_FetchedTime(t *testing.T) {
 		t.Errorf("fetched relative time missing in: %q", got)
 	}
 }
+
+// TestFormatAccountLine_ColumnAlignment 守护跨行对齐不变量：进度条起点、状态点、
+// "Last Refreshed" 文本起点必须在所有行落在同一列，无论 vendor slug 长短、数值是百分比
+// 还是余额、正负、或 N/A。挡住两类旧回归：① %-Ns 左对齐让状态点随数值长度漂移；
+// ② 长 vendor (anthropic/deepseek) 超出定宽把整条右半部右移。
+func TestFormatAccountLine_ColumnAlignment(t *testing.T) {
+	cases := []domain.VendorUsage{
+		{AccountID: "1", Vendor: "glm", Label: "short", Primary: &domain.UsageDimension{PercentUsed: 7}},
+		{AccountID: "2", Vendor: "anthropic", Label: "longer-label", Primary: &domain.UsageDimension{Balance: 49.6, Currency: "CNY", PercentUsed: -1}},
+		{AccountID: "3", Vendor: "deepseek", Label: "x", Primary: &domain.UsageDimension{Balance: -1500, Currency: "USD", PercentUsed: -1}},
+		{AccountID: "4", Vendor: "openai", Label: "y", Primary: &domain.UsageDimension{PercentUsed: 100}},
+		{AccountID: "5", Vendor: "kimi", Label: "z", Primary: nil}, // N/A → 灰条 + ○
+	}
+	// 度量用"显示列"（tview.TaggedStringWidth）而非 byte/rune 索引：pctStr 列含
+	// 多字节货币符号 ¥（2 byte 但显示宽 1），padDisplay 按显示宽度补齐，所以只有
+	// 显示列恒定——byte 索引会因 ¥ 多出 1 字节而误报错位。
+	barCol, dotCol, refreshCol := -1, -1, -1
+	for _, u := range cases {
+		raw := stripTags(formatAccountLine(u))
+
+		// 进度条起点：第一个 shade 字形 ▓/░
+		i := strings.IndexAny(raw, "▓░")
+		if i < 0 {
+			t.Fatalf("no bar cell in: %q", raw)
+		}
+		c := tview.TaggedStringWidth(raw[:i])
+		if barCol == -1 {
+			barCol = c
+		} else if c != barCol {
+			t.Errorf("bar start misaligned for %q: display col %d want %d\n  %q", u.Label, c, barCol, raw)
+		}
+
+		// 状态点 ●/○
+		i = strings.IndexAny(raw, "●○")
+		if i < 0 {
+			t.Fatalf("no status dot in: %q", raw)
+		}
+		c = tview.TaggedStringWidth(raw[:i])
+		if dotCol == -1 {
+			dotCol = c
+		} else if c != dotCol {
+			t.Errorf("status dot misaligned for %q: display col %d want %d\n  %q", u.Label, c, dotCol, raw)
+		}
+
+		// "Last Refreshed" 文本起点
+		i = strings.Index(raw, "Last Refreshed")
+		if i < 0 {
+			t.Fatalf("no Last Refreshed in: %q", raw)
+		}
+		c = tview.TaggedStringWidth(raw[:i])
+		if refreshCol == -1 {
+			refreshCol = c
+		} else if c != refreshCol {
+			t.Errorf("Last Refreshed misaligned for %q: display col %d want %d\n  %q", u.Label, c, refreshCol, raw)
+		}
+	}
+}
+
+// tagRe 匹配 tview 颜色/区域标签 ([...]，内部不含 ']'）。tview v0.42 无导出的
+// StripTags，测试在此本地剥离以便对纯可见文本断言对齐。
+var tagRe = regexp.MustCompile(`\[[^\]]*\]`)
+
+func stripTags(s string) string { return tagRe.ReplaceAllString(s, "") }
 
 // TestHumanizeAgo 验证相对时间格式（零值→—；过去→含 ago 单位）。
 func TestHumanizeAgo(t *testing.T) {

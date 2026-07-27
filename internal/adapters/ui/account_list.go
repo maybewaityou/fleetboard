@@ -134,13 +134,15 @@ func primaryPercent(u domain.VendorUsage) float64 {
 	return u.Primary.PercentUsed
 }
 
-// formatAccountLine renders one aligned list row:
+// formatAccountLine renders one aligned list row. Every column has a fixed
+// DISPLAY width so the progress bar, the value, the status dot and the
+// "Last Refreshed" text each start on the same column across all rows:
 //
-//	<icon> <label pad22>    <vendor chip>    <miniBar8> <pct> <dot>    <lastRefreshed>
+//	<pin2> <icon> <label pad16> <vendor pad9> <miniBar4> <pct 左对齐7> <dot>    <lastRefreshed>
 //
-// icon = vendor 首字母(品牌色), 与左边框留 1 空格(参考 lazytmux marker 固定列)。
-// vendor 与 miniBar 之间留宽间距；miniBar+pct+dot 紧凑；dot 与 fetched 之间留宽间距。
-// fetched 是相对时间(humanizeAgo)。label 用 padDisplay(CJK 显示宽度对齐)。
+// icon = vendor 首字母(品牌色). label/vendor/pct 均用 padDisplay (CJK 显示宽度对齐):
+// pct 左对齐紧贴进度条 (用量数值与进度条语义连贯), 列宽固定 7 使右边界不变, 状态点仍对齐.
+// fetched 是相对时间 (humanizeAgo).
 func formatAccountLine(u domain.VendorUsage) string {
 	pctStr, dot := "N/A", "○"
 	dotCol := colorGray // N/A 默认灰点
@@ -181,14 +183,18 @@ func formatAccountLine(u domain.VendorUsage) string {
 
 	fetched := humanizeAgo(u.FetchedAt)
 
-	// 列布局：pin(2) icon(1) sp | label pad16 | 1sp | vendor chip | 2sp | miniBar4 sp pct(pad4) dot | 4sp | Last Refreshed: fetched
-	return fmt.Sprintf("%s [%s]%s[-] %s [black:%s] %-7s [-:-:-]  %s [%s]%-4s[-][%s]%s[-]    [%s]Last Refreshed: %s[-]",
+	// 列布局（每列固定显示宽度 → 进度条/数值/状态点/时间跨行严格对齐）：
+	//   pin(2) icon(1) sp | label pad16 | sp | vendorChip(pad9) | 2sp | miniBar(4) sp | pctStr 左对齐7 | sp dot | 4sp | Last Refreshed: fetched
+	// 对齐要点：① vendor pad 到 9 覆盖最长 slug "anthropic"，否则 anthropic/deepseek 行整条右半部右移；
+	//          ② pctStr 紧贴 miniBar 左对齐（padDisplay 到 7）：数值与进度条语义连贯（都是用量），
+	//            同时列宽固定 7 → 右边界不变 → 紧跟的状态点 ● 仍落在同一列；miniBar(4) 本身定宽。
+	return fmt.Sprintf("%s [%s]%s[-] %s [black:%s] %s [-:-:-]  %s [%s]%s[-] [%s]%s[-]    [%s]Last Refreshed: %s[-]",
 		pin,
 		iconFg, icon,
 		padDisplay(label, 16),
-		colorAccent, u.Vendor,
+		colorAccent, padDisplay(u.Vendor, 9),
 		renderBar(pct, 4),
-		colorPrimary, pctStr,
+		colorPrimary, padDisplay(pctStr, 7),
 		dotCol, dot,
 		colorSecondary, fetched)
 }
