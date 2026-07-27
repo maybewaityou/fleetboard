@@ -53,6 +53,15 @@ type RefreshAllFunc func() []domain.ProviderUsage
 // services.Aggregator.FetchOne.
 type RefreshSelectedFunc func(accountID string) []domain.ProviderUsage
 
+// LoadInitialFunc is the shape of the boot callback: it performs the first
+// fetch of every configured account (services.Aggregator.FetchAll in main.go)
+// and returns the full dataset the TUI seeds allCache with. Run() invokes it on
+// a background goroutine while a loading splash is on screen, then swaps to the
+// main view when it returns. When Config.LoadInitial is nil, Run() falls back to
+// the synchronous InitialData path so unit tests can drive the TUI without a
+// splash.
+type LoadInitialFunc func() []domain.ProviderUsage
+
 // Config parameterizes the TUI. RefreshSelected/RefreshAll are optional: when
 // nil, r/R flash a "not wired" status instead of no-op-ing silently, so a
 // misconfigured assembly makes its own wiring state obvious during smoke.
@@ -61,6 +70,7 @@ type Config struct {
 	Version         string
 	Commit          string
 	InitialData     []domain.ProviderUsage
+	LoadInitial     LoadInitialFunc     // boot — async first fetch; nil → sync InitialData path (tests)
 	RefreshSelected RefreshSelectedFunc // r — refresh the currently-selected account
 	RefreshAll      RefreshAllFunc      // R — refresh every account
 
@@ -99,6 +109,7 @@ type TUI struct {
 	// sortMode is the active list sort, cycled by s/S.
 	sortMode SortMode
 
+	loadInitial     LoadInitialFunc
 	refreshSelected RefreshSelectedFunc
 	refreshAll      RefreshAllFunc
 
@@ -125,6 +136,7 @@ func NewTUI(cfg Config) *TUI {
 		commit:          cfg.Commit,
 		sortMode:        SortByNameAsc,
 		allCache:        cfg.InitialData,
+		loadInitial:     cfg.LoadInitial,
 		refreshSelected: cfg.RefreshSelected,
 		refreshAll:      cfg.RefreshAll,
 		onSaveAccount:   cfg.OnSaveAccount,
@@ -148,12 +160,13 @@ func (t *TUI) Run() error {
 	t.app = initializeTheme()
 	t.app.EnableMouse(true)
 	t.queueDraw = func(f func()) { t.app.QueueUpdateDraw(f) }
-	t.buildComponents().buildLayout().bindEvents().loadInitialData()
+	t.buildComponents().buildLayout().bindEvents()
 	t.accountList.SetSortTitle(t.sortMode.String())
 
 	// clock ticker：每 clockTickInterval 重渲列表，让 "Last Refreshed: Xm ago" 相对
 	// 时间持续推进，而非停在首次渲染时的 "just now"。tick 走 queueDraw，与 Render 同一
-	// 主循环通道；defer Stop 保证 TUI 退出时 goroutine 不泄漏。
+	// 主循环通道；defer Stop 保证 TUI 退出时 goroutine 不泄漏。加载期间 allCache 为空，
+	// applyCacheToViews 仅写不可见的状态栏文本，无副作用。
 	ticker := time.NewTicker(clockTickInterval)
 	defer ticker.Stop()
 	go func() {
@@ -162,8 +175,15 @@ func (t *TUI) Run() error {
 		}
 	}()
 
-	t.app.SetRoot(t.root, true)
-	t.focusList()
+	if t.loadInitial != nil {
+		// 异步引导：先画加载界面，后台拉数据，回来后换根到主界面——在此之前终端不再卡死。
+		t.bootAsync()
+	} else {
+		// 同步路径（单测 / 无引导回调）：直接画 allCache 种子数据，无 splash、无 goroutine。
+		t.loadInitialData()
+		t.app.SetRoot(t.root, true)
+		t.focusList()
+	}
 	if t.logger != nil {
 		t.logger.Infow("starting TUI", "version", t.version, "commit", t.commit)
 	}
@@ -262,6 +282,64 @@ func (t *TUI) bindEvents() *TUI {
 func (t *TUI) loadInitialData() *TUI {
 	t.applyCacheToViews()
 	return t
+}
+
+// bootAsync shows the loading splash, runs the initial fetch on a background
+// goroutine, and swaps to the main view once the dataset lands.
+//
+// Why app-level input capture: handleGlobalKeys is bound to t.root, which is NOT
+// the active root while the splash is up, and TextView has no SetInputCapture of
+// its own — so q / Ctrl-C would be dead during loading. app.SetInputCapture
+// sees every key regardless of focus; we clear it (nil) on swap so it does not
+// shadow the main view's key handling.
+//
+// Why a done channel rather than just spinTick.Stop(): a stopped ticker simply
+// stops delivering on its channel; the goroutine blocked on <-spinTick.C would
+// wait forever and leak. Closing done lets the select fall through to return.
+//
+// Why applyDataset (not Render) in the swap: the swap runs on the tview main
+// loop (queued via queueDraw); Render's inner QueueUpdateDraw would block
+// waiting for that same loop and deadlock — the same discipline doTogglePin and
+// the form submit already follow.
+func (t *TUI) bootAsync() {
+	lv := NewLoadingView()
+	root := newLoadingRoot(lv)
+
+	t.app.SetInputCapture(func(e *tcell.EventKey) *tcell.EventKey {
+		if e.Key() == tcell.KeyCtrlC || e.Rune() == 'q' {
+			t.app.Stop()
+			return nil
+		}
+		return e
+	})
+	t.app.SetRoot(root, true)
+	t.app.SetFocus(lv)
+
+	done := make(chan struct{})
+	spinTick := time.NewTicker(spinnerInterval)
+	go func() {
+		for i := 0; ; i++ {
+			select {
+			case <-done:
+				return
+			case <-spinTick.C:
+				f := i // capture per-iteration for the queued closure
+				t.queueDraw(func() { lv.SetFrame(f, "Loading accounts…") })
+			}
+		}
+	}()
+
+	go func() {
+		usages := t.loadInitial()
+		t.queueDraw(func() {
+			close(done) // unblock + exit the spinner goroutine
+			spinTick.Stop()
+			t.app.SetInputCapture(nil) // restore sole key handling to t.root
+			t.applyDataset(usages)
+			t.app.SetRoot(t.root, true)
+			t.focusList()
+		})
+	}()
 }
 
 // applyCacheToViews pushes allCache through the search filter into the list and

@@ -127,12 +127,12 @@ func run(sugar *zap.SugaredLogger) error {
 	// the TUI owns its snapshot.
 	cache := &usageCache{}
 
-	// Initial data: fetch every configured account so the first frame already
-	// shows live usage. Per-account errors land in ProviderUsage.Err and are passed
-	// through untouched (task-7 err-transparency contract).
-	initial := agg.FetchAll(ctx, cfg.Accounts)
-	cache.replaceAll(initial)
-
+	// Initial data is fetched asynchronously by the TUI's loading screen
+	// (Config.LoadInitial below) — the same fetch+cache+snapshot logic as R, so
+	// we reuse refreshAll as the boot callback. Until it returns, the user sees a
+	// loading splash instead of a frozen terminal. Per-account errors land in
+	// ProviderUsage.Err and are passed through untouched (task-7 err-transparency
+	// contract).
 	refreshAll := func() []domain.ProviderUsage {
 		usages := agg.FetchAll(ctx, cfg.Accounts)
 		cache.replaceAll(usages)
@@ -204,7 +204,7 @@ func run(sugar *zap.SugaredLogger) error {
 		Logger:          sugar,
 		Version:         version,
 		Commit:          gitCommit,
-		InitialData:     cache.snapshot(),
+		LoadInitial:     refreshAll, // boot — async first fetch via the loading screen
 		RefreshSelected: refreshSelected,
 		RefreshAll:      refreshAll,
 		OnSaveAccount:   onSaveAccount,
