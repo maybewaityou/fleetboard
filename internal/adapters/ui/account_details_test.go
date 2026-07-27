@@ -80,13 +80,22 @@ func TestRenderBar_FullCells(t *testing.T) {
 	}
 }
 
-// TestFormatMoney 验证余额详情格式（2 位小数）。
+// TestFormatMoney 验证余额详情格式（2 位小数）；未知币别按 spec §5.2 拼币别代码；
+// 负值负号置于符号之前（spec §3）。
 func TestFormatMoney(t *testing.T) {
 	if got := formatMoney(49.58894, "CNY"); got != "¥49.59" {
 		t.Errorf("formatMoney(49.58894,CNY) = %q, want ¥49.59", got)
 	}
 	if got := formatMoney(3.0, "USD"); got != "$3.00" {
 		t.Errorf("formatMoney(3.0,USD) = %q, want $3.00", got)
+	}
+	// M1: 未知币别 — symbol 为空时降级为 "100.00 EUR"（spec §5.2），而非裸数字。
+	if got := formatMoney(100.0, "EUR"); got != "100.00 EUR" {
+		t.Errorf("formatMoney(100.0,EUR) = %q, want \"100.00 EUR\"", got)
+	}
+	// M2: 负值负号在符号前。
+	if got := formatMoney(-50.0, "CNY"); got != "-¥50.00" {
+		t.Errorf("formatMoney(-50.0,CNY) = %q, want \"-¥50.00\"", got)
 	}
 }
 

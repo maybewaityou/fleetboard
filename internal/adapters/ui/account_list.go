@@ -193,9 +193,16 @@ func formatAccountLine(u domain.VendorUsage) string {
 		colorSecondary, fetched)
 }
 
-// formatMoneyShort 余额短格式（列表用，1 位小数，>1000 缩写 k）。
+// formatMoneyShort 余额短格式（列表用，1 位小数，>1000 缩写 k）。负值把负号置于符号之前
+// （-¥50.0 而非 ¥-50.0），spec §3 容许负余额场景。
 func formatMoneyShort(balance float64, currency string) string {
 	sym := currencySymbol(currency)
+	if balance < 0 {
+		if math.Abs(balance) >= 1000 {
+			return "-" + sym + fmt.Sprintf("%.1fk", -balance/1000)
+		}
+		return "-" + sym + fmt.Sprintf("%.1f", -balance)
+	}
 	if math.Abs(balance) >= 1000 {
 		return fmt.Sprintf("%s%.1fk", sym, balance/1000)
 	}

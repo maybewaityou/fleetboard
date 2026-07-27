@@ -123,6 +123,11 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.V
 	}
 
 	info := r.BalanceInfos[0]
+	// 防御性默认：API 偶发返回 currency:"" 时，UI 判定（Currency != "" 区分余额/配额型）
+	// 会把该维度误判为配额型并渲染 -1%——正是本特性要修的 bug。保留余额数据，币别回退 CNY。
+	if info.Currency == "" {
+		info.Currency = "CNY"
+	}
 	total, err := strconv.ParseFloat(info.TotalBalance, 64)
 	if err != nil {
 		u.Err = fmt.Errorf("deepseek: parse total_balance %q: %w", info.TotalBalance, err)

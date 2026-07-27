@@ -220,3 +220,30 @@ func TestFetchUsageBadJSON(t *testing.T) {
 		t.Error("u.Err should be set on decode error")
 	}
 }
+
+// TestFetchUsageEmptyCurrency 验证 API 返回 currency:"" 时防御性回退为 CNY：
+// 不让空串触发 UI 的 Currency!="" 判定（否则该余额维度会被误判为配额型并渲染 -1%），
+// 同时保留余额数据而非整体失败。
+func TestFetchUsageEmptyCurrency(t *testing.T) {
+	payload := `{"is_available":true,"balance_infos":[{"currency":"","total_balance":"5.00","granted_balance":"0","topped_up_balance":"5.00"}]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, payload)
+	}))
+	defer srv.Close()
+
+	t.Setenv("DEEPSEEK_API_KEY", "K")
+	acc := domain.Account{ID: "d", Vendor: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err != nil {
+		t.Fatalf("unexpected err for empty currency (should default to CNY): %v", err)
+	}
+	if len(u.Dimensions) != 1 {
+		t.Fatalf("len(Dimensions) = %d, want 1", len(u.Dimensions))
+	}
+	if u.Dimensions[0].Currency != "CNY" {
+		t.Errorf("dim.Currency = %q, want CNY (defensive default for empty)", u.Dimensions[0].Currency)
+	}
+	if u.Dimensions[0].Balance != 5.0 {
+		t.Errorf("dim.Balance = %v, want 5.0 (balance data preserved)", u.Dimensions[0].Balance)
+	}
+}

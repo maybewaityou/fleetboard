@@ -15,7 +15,7 @@
 // Command fleetboard is the AI coding-plan usage dashboard TUI.
 //
 // This is the assembly: it wires the concrete adapters (yaml config store,
-// glm/minimax providers, services.Aggregator) into the tview TUI and exposes
+// glm/minimax/kimi/deepseek providers, services.Aggregator) into the tview TUI and exposes
 // manual refresh keys — r re-fetches the selected account (FetchOne) and R
 // re-fetches every account (FetchAll). (Background auto-refresh was removed by
 // request — refresh manually with r/R.) Refresh callbacks hand the fresh

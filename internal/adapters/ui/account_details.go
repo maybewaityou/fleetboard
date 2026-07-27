@@ -276,7 +276,15 @@ func currencySymbol(currency string) string {
 	}
 }
 
-// formatMoney 余额详情格式（2 位小数）。
+// formatMoney 余额详情格式（2 位小数）。负值把负号置于符号之前（-¥50.00 而非 ¥-50.00），
+// 未知币别按 spec §5.2 降级为 "100.00 EUR"（symbol 为空时拼上币别代码）。
 func formatMoney(balance float64, currency string) string {
-	return fmt.Sprintf("%s%.2f", currencySymbol(currency), balance)
+	sym := currencySymbol(currency)
+	if sym == "" {
+		return fmt.Sprintf("%.2f %s", balance, currency)
+	}
+	if balance < 0 {
+		return "-" + sym + fmt.Sprintf("%.2f", -balance)
+	}
+	return fmt.Sprintf("%s%.2f", sym, balance)
 }

@@ -276,7 +276,8 @@ func TestRenderDimension_NA(t *testing.T) {
 	}
 }
 
-// TestFormatMoneyShort 验证余额短格式：CNY→¥、USD→$、>1000 缩写 k、1 位小数。
+// TestFormatMoneyShort 验证余额短格式：CNY→¥、USD→$、>1000 缩写 k、1 位小数；
+// 负值负号置于符号前（spec §3，-¥50.0 而非 ¥-50.0），含 k 分支。
 func TestFormatMoneyShort(t *testing.T) {
 	cases := []struct {
 		balance  float64
@@ -287,6 +288,9 @@ func TestFormatMoneyShort(t *testing.T) {
 		{3.0, "USD", "$3.0"},
 		{1200.0, "CNY", "¥1.2k"},
 		{0, "CNY", "¥0.0"},
+		// M2: 负值 — 负号在符号前，普通与 k 分支各一。
+		{-50.0, "CNY", "-¥50.0"},
+		{-1500.0, "USD", "-$1.5k"},
 	}
 	for _, tc := range cases {
 		if got := formatMoneyShort(tc.balance, tc.currency); got != tc.want {
