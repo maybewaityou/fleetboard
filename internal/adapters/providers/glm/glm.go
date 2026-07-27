@@ -114,6 +114,8 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.V
 	if base == "" {
 		base = defaultBaseURL
 	}
+	u.BaseURL = base
+	u.Endpoint = usagePath
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+usagePath, nil)
 	if err != nil {
@@ -141,6 +143,7 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.V
 		return u, u.Err
 	}
 
+	u.PlanLevel = r.Data.Level
 	u.Dimensions = buildDimensions(r.Data.Limits)
 	u.SelectPrimary()
 	return u, nil

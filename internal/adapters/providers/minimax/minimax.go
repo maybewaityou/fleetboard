@@ -116,6 +116,8 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.V
 	if base == "" {
 		base = defaultBaseURL
 	}
+	u.BaseURL = base
+	u.Endpoint = usagePath
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+usagePath, nil)
 	if err != nil {
@@ -146,6 +148,12 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.V
 		return u, u.Err
 	}
 
+	if len(r.ModelRemains) > 0 {
+		mr := r.ModelRemains[0]
+		u.Model = mr.Model
+		u.WindowStart = time.Unix(mr.StartTime, 0).UTC()
+		u.WindowEnd = time.Unix(mr.EndTime, 0).UTC()
+	}
 	u.Dimensions = []domain.UsageDimension{buildDimension(r)}
 	u.SelectPrimary()
 	return u, nil

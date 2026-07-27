@@ -114,6 +114,21 @@ func TestFetchUsageGolden(t *testing.T) {
 	if u.AccountID != "m" || u.Vendor != "minimax" || u.Label != "MiniMax" {
 		t.Errorf("VendorUsage top fields wrong: %+v", u)
 	}
+	// Basic Info 字段（adapter 填充）
+	if u.Model != "abab6" {
+		t.Errorf("Model = %q, want abab6", u.Model)
+	}
+	if u.Endpoint != "/v1/token_plan/remains" {
+		t.Errorf("Endpoint = %q, want /v1/token_plan/remains", u.Endpoint)
+	}
+	if u.BaseURL != srv.URL {
+		t.Errorf("BaseURL = %q, want %s", u.BaseURL, srv.URL)
+	}
+	wantWinStart := time.Unix(1711843200, 0).UTC()
+	wantWinEnd := time.Unix(1711929600, 0).UTC()
+	if !u.WindowStart.Equal(wantWinStart) || !u.WindowEnd.Equal(wantWinEnd) {
+		t.Errorf("Window = %s→%s, want %s→%s", u.WindowStart, u.WindowEnd, wantWinStart, wantWinEnd)
+	}
 }
 
 // TestFetchUsageSnakeCaseField 验证 usage_percent snake_case 变体同样被解析

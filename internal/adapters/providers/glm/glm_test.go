@@ -136,6 +136,16 @@ func TestFetchUsageGolden(t *testing.T) {
 	if u.AccountID != "g" || u.Vendor != "glm" || u.Label != "智谱" {
 		t.Errorf("VendorUsage top fields wrong: %+v", u)
 	}
+	// Basic Info 字段（adapter 填充）
+	if u.PlanLevel != "pro" {
+		t.Errorf("PlanLevel = %q, want pro", u.PlanLevel)
+	}
+	if u.Endpoint != "/api/monitor/usage/quota/limit" {
+		t.Errorf("Endpoint = %q, want /api/monitor/usage/quota/limit", u.Endpoint)
+	}
+	if u.BaseURL != srv.URL {
+		t.Errorf("BaseURL = %q, want %s", u.BaseURL, srv.URL)
+	}
 }
 
 // TestFetchUsageUnsortedTokens 验证 TOKENS_LIMIT 按 nextResetTime 升序命名：
