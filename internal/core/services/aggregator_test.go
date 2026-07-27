@@ -162,8 +162,12 @@ func TestFetchAllPreservesOrder(t *testing.T) {
 		mock.New("f", dims("f", 60), nil),
 	)
 	accs := []domain.Account{
-		{ID: "1", Vendor: "a"}, {ID: "2", Vendor: "b"}, {ID: "3", Vendor: "c"},
-		{ID: "4", Vendor: "d"}, {ID: "5", Vendor: "e"}, {ID: "6", Vendor: "f"},
+		{ID: "1", Vendor: "a"},
+		{ID: "2", Vendor: "b"},
+		{ID: "3", Vendor: "c"},
+		{ID: "4", Vendor: "d"},
+		{ID: "5", Vendor: "e"},
+		{ID: "6", Vendor: "f"},
 	}
 
 	got := NewAggregator(reg).FetchAll(context.Background(), accs)

@@ -195,15 +195,20 @@ func renderDimension(dim domain.UsageDimension) string {
 	return b.String()
 }
 
-// eighths 是 1/8 块渐变字符（下标 1..7），让窄进度条（如列表 4 格）也能呈现亚
-// 格子精度——23% 在 4 格 = 32 sub-units 的第 7 级，渲染为单个 ▉ 而非 int() 取整为 0。
-var eighths = []string{"", "▏", "▎", "▍", "▌", "▋", "▊", "▉"}
-
 // renderBar draws a width-cell bar filled proportionally to pct, colored by
-// StatusColor. Sub-cell precision uses the 1/8 block glyphs above so a 4-cell
-// miniBar still shows ~23% as a near-full first cell instead of rounding to 0.
-// pct<0 (N/A) yields an all-gray hollow bar. Width is parameterized so the
-// list's miniBar (4) and details' bar (20) share one implementation.
+// StatusColor. It uses the three shade glyphs ░▒▓ (U+2591..U+2593) for a soft
+// dotted gradient instead of hard block edges: each filled cell is ▓, the
+// single boundary cell fades by sub-cell progress (shadeOf → ▓/▒/░), and the
+// remaining tail is ░. pct<0 (N/A) yields an all-gray ░ bar. Width is
+// parameterized so the list's miniBar (4) and details' bar (20) share one
+// implementation.
+//
+// Trade-off vs the previous 1/8 block glyphs (▏▎▍▌▋▊▉): shades give a uniform
+// dotted texture and soften the fill edge, but carry only 3 levels of sub-cell
+// resolution instead of 8. On the 4-cell list bar ~23% now reads as one ▓
+// rather than a near-full ▉; the 20-cell details bar loses nothing practical
+// (5% per cell, 3 levels is plenty). 50% has rem==0 so no boundary cell is
+// emitted — the bar splits exactly in half (▓×N ░×N), centered by construction.
 func renderBar(pct float64, width int) string {
 	if pct < 0 {
 		return "[" + colorGray + "]" + strings.Repeat("░", width) + "[-]"
@@ -220,20 +225,35 @@ func renderBar(pct float64, width int) string {
 	}
 	full := subs / 8
 	rem := subs % 8
-	hollow := width - full
-	if rem > 0 {
-		hollow-- // 部分块占掉 1 格
-	}
+	filled := full
 	col := StatusColor(pct)
 	var b strings.Builder
 	b.WriteString("[" + col + "]")
-	b.WriteString(strings.Repeat("█", full))
+	b.WriteString(strings.Repeat("▓", full))
 	if rem > 0 {
-		b.WriteString(eighths[rem])
+		b.WriteString(shadeOf(rem))
+		filled++
 	}
-	b.WriteString(strings.Repeat("░", hollow))
+	b.WriteString(strings.Repeat("░", width-filled))
 	b.WriteString("[-]")
 	return b.String()
+}
+
+// shadeOf maps a sub-cell remainder (1..7 eighths) to a shade glyph so the
+// boundary cell fades rather than showing a hard █|░ edge:
+//
+//	1–2 eighths → ░  (almost empty, blends into the hollow tail)
+//	3–5 eighths → ▒  (half)
+//	6–7 eighths → ▓  (almost full, blends into the filled run)
+func shadeOf(rem int) string {
+	switch {
+	case rem <= 2:
+		return "░"
+	case rem <= 5:
+		return "▒"
+	default:
+		return "▓"
+	}
 }
 
 // pinnedStr renders the Pinned bool as true/false for the Basic Info table,

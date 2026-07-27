@@ -55,28 +55,40 @@ func TestFirstNonEmpty(t *testing.T) {
 	}
 }
 
-// TestRenderBar_SubCell 验证亚格子精度：4 格宽度下 23% 不再被 int() 取整为 0，
-// 而是渲染出单个部分块 ▉（eighths[7]）+ 空格；颜色随进度（green<70）。
+// TestRenderBar_SubCell 验证阴影渐变边界：4 格宽度下 23% 落在首格的 7/8 处，
+// shadeOf(7)=▓，故渲染为单个深阴影 ▓ + 3 个浅阴影 ░；颜色随进度（green<70）。
 func TestRenderBar_SubCell(t *testing.T) {
-	got := renderBar(23, 4) // 23% × 4格 × 8 = 7.36 → subs=7 → ▉ + 3 hollow
-	if !strings.Contains(got, "▉") {
-		t.Errorf("23%% at width 4 should render a ▉ sub-cell, got: %q", got)
+	got := renderBar(23, 4) // 23% × 4格 × 8 = 7.36 → subs=7 → ▓ + 3 hollow
+	if !strings.Contains(got, "▓") {
+		t.Errorf("23%% at width 4 should render a ▓ shade boundary, got: %q", got)
 	}
 	if !strings.Contains(got, "["+colorGreen+"]") {
 		t.Errorf("23%% bar should be green: %q", got)
 	}
 	if strings.Contains(got, "█") {
-		t.Errorf("23%% at width 4 should have no full cell, got: %q", got)
+		t.Errorf("23%% at width 4 should have no full block, got: %q", got)
 	}
 }
 
-// TestRenderBar_FullCells 验证整格边界与颜色梯度：50%=2 整格(green)，95%=红色。
+// TestRenderBar_FullCells 验证整格边界与颜色梯度：50%=2 深▓+2 浅░（green），95%=红色。
 func TestRenderBar_FullCells(t *testing.T) {
-	if got := renderBar(50, 4); !strings.Contains(got, "["+colorGreen+"]██░░") {
-		t.Errorf("50%% at width 4 = 2 full + 2 hollow green, got: %q", got)
+	if got := renderBar(50, 4); !strings.Contains(got, "["+colorGreen+"]▓▓░░") {
+		t.Errorf("50%% at width 4 = 2 dark + 2 light shade, got: %q", got)
 	}
 	if got := renderBar(95, 4); !strings.Contains(got, "["+colorRed+"]") {
 		t.Errorf("95%% bar should be red: %q", got)
+	}
+}
+
+// TestRenderBar_HalfIsCentered 锁定 spec 需求：50% 在偶数宽度下必须正到中间——
+// rem==0 不产生边界格，深浅严格各半。details=20 → ▓×10░×10；list=4 → ▓×2░×2。
+func TestRenderBar_HalfIsCentered(t *testing.T) {
+	for _, w := range []int{4, 20} {
+		got := renderBar(50, w)
+		want := "[" + colorGreen + "]" + strings.Repeat("▓", w/2) + strings.Repeat("░", w/2) + "[-]"
+		if got != want {
+			t.Errorf("50%% at width %d = %q, want %q", w, got, want)
+		}
 	}
 }
 

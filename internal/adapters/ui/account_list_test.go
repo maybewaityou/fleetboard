@@ -248,7 +248,7 @@ func TestRenderDimension_BarFill(t *testing.T) {
 		Source:      "api-balanced",
 	}
 	got := renderDimension(dim)
-	if !strings.Contains(got, "█") || !strings.Contains(got, "░") {
+	if !strings.Contains(got, "▓") || !strings.Contains(got, "░") {
 		t.Errorf("bar missing fill/hollow cells: %q", got)
 	}
 	// 95% → red bar prefix
