@@ -5,3 +5,6 @@ coverage.out
 
 # Personal release tooling (not part of the shipped project).
 scripts/
+
+# Superpowers SDD workspace (scratch — briefs, reports, ledger).
+.superpowers/
