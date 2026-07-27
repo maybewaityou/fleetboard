@@ -131,13 +131,13 @@ func basicInfoLine(key, val string) string {
 }
 
 // providerInfoLine 渲染 Basic Info 中的 Provider 行：key 用与 basicInfoLine 一致的
-// %-10s 对齐，value 则用与列表条目完全一致的 chip（accent 背景、黑字）而非纯文本。
+// %-10s 对齐，value 则用与列表条目完全一致的 chip（accent 背景、黑字、加粗）而非纯文本。
 func providerInfoLine(provider string) string {
 	v := provider
 	if v == "" {
 		v = "—"
 	}
-	return fmt.Sprintf("  [%s]%-10s[-]  [black:%s] %s [-:-:-]\n", colorSecondary, "Provider:", colorAccent, v)
+	return fmt.Sprintf("  [%s]%-10s[-]  [black:%s::b] %s [-:-:-]\n", colorSecondary, "Provider:", colorAccent, v)
 }
 
 // RenderEmpty swaps the pane for a centered placeholder when nothing is

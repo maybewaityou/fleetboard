@@ -212,7 +212,7 @@ func formatAccountLine(u domain.ProviderUsage) string {
 	// 对齐要点：① provider pad 到 9 覆盖最长 slug "anthropic"，否则 anthropic/deepseek 行整条右半部右移；
 	//          ② pctStr 紧贴 miniBar 左对齐（padDisplay 到 7）：数值与进度条语义连贯（都是用量），
 	//            同时列宽固定 7 → 右边界不变 → 紧跟的状态点 ● 仍落在同一列；miniBar(4) 本身定宽。
-	return fmt.Sprintf("%s [%s]%s[-] %s [black:%s] %s [-:-:-]  %s [%s]%s[-] [%s]%s[-]    [%s]Last Refreshed: %s[-]",
+	return fmt.Sprintf("%s [%s]%s[-] %s [black:%s::b] %s [-:-:-]  %s [%s]%s[-] [%s]%s[-]    [%s]Last Refreshed: %s[-]",
 		pin,
 		iconFg, icon,
 		padDisplay(label, 16),
