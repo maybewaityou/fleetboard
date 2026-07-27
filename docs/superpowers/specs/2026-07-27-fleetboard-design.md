@@ -179,7 +179,7 @@ root = FlexRow {
 每行内容：`配置名` + `[平台 tag · 带背景色]` + `百分比`（取主维度，即最接近上限那档）+ `状态点`
 
 - 平台 tag：用 tview `[fg:bg]` 双色语法渲染色块，背景色取自 `theme.go` 的 `vendorColor` map：
-  - `glm`=#7C3AED（紫）、`minimax`=#EF4444（红）、`kimi`=#06B6D4（青）、`anthropic`=#D97757（橙）、`openai`=#10A37F（绿）、`cursor`=#6366F1（靛）、`copilot`=#0969DA（蓝）
+  - `glm`=#7C3AED（紫）、`minimax`=#EF4444（红）、`kimi`=#06B6D4（青）、`anthropic`=#D97757（橙）、`openai`=#10A37F（绿）、`cursor`=#6366F1（靛）、`copilot`=#0969DA（蓝）、`deepseek`=#2563EB（蓝）
 - 状态点 `●`：`<70%` 绿 / `70-90%` 黄 / `>90%` 红 / 无数据或失败 灰 `○`
 - 选中行：整行高亮（`colorSelected` 背景），与 lazytmux 一致
 

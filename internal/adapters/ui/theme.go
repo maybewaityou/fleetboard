@@ -30,6 +30,7 @@ var vendorColor = map[string][2]string{ // {bg, fg}
 	"openai":    {"#10A37F", "#FFFFFF"},
 	"cursor":    {"#6366F1", "#FFFFFF"},
 	"copilot":   {"#0969DA", "#FFFFFF"},
+	"deepseek":  {"#2563EB", "#FFFFFF"},
 }
 
 // Unknown-vendor fallback colors: a neutral gray that keeps the tag readable

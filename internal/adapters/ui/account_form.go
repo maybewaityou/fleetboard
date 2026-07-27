@@ -31,7 +31,7 @@ const (
 )
 
 // vendorOptions 是 Vendor 下拉的可选项（与 cmd/main 注册的 adapter 对应）。
-var vendorOptions = []string{"glm", "minimax"}
+var vendorOptions = []string{"glm", "minimax", "kimi", "deepseek"}
 
 // AccountForm 是新增/编辑账号的模态表单（仿 lazytmux session_multifield_form）。
 type AccountForm struct {

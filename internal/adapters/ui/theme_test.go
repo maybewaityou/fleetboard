@@ -36,6 +36,7 @@ func TestVendorTag_KnownVendors(t *testing.T) {
 		{"openai", "#10A37F", "#FFFFFF"},
 		{"cursor", "#6366F1", "#FFFFFF"},
 		{"copilot", "#0969DA", "#FFFFFF"},
+		{"deepseek", "#2563EB", "#FFFFFF"},
 	}
 	for _, tc := range cases {
 		tc := tc
