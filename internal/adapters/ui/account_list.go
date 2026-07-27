@@ -123,15 +123,35 @@ func (al *AccountList) OnReturnToSearch(fn func()) *AccountList {
 	return al
 }
 
-// primaryPercent returns Primary.PercentUsed, or -1 when there is no primary
-// dimension (N/A). -1 is the sentinel StatusColor reads as "gray", so the list
-// dot and details bar both degrade consistently for accounts with no usable
-// data.
-func primaryPercent(u domain.ProviderUsage) float64 {
-	if u.Primary == nil {
-		return -1
+// displayDimension returns the dimension shown in the list: the one with the
+// soonest non-zero ResetsAt (the nearest reset window — "最近时间"), falling back
+// to Primary when no dimension carries a reset time (balance providers such as
+// kimi/deepseek), then nil. -1 from PercentUsed is the sentinel StatusColor
+// reads as "gray", so the list dot and details bar degrade consistently.
+func displayDimension(u domain.ProviderUsage) *domain.UsageDimension {
+	var nearest *domain.UsageDimension
+	for i := range u.Dimensions {
+		d := &u.Dimensions[i]
+		if d.ResetsAt.IsZero() {
+			continue
+		}
+		if nearest == nil || d.ResetsAt.Before(nearest.ResetsAt) {
+			nearest = d
+		}
 	}
-	return u.Primary.PercentUsed
+	if nearest != nil {
+		return nearest
+	}
+	return u.Primary
+}
+
+// displayPercent is the usage key shared by the list dot/bar and the Usage-sort
+// mode: the displayed dimension's PercentUsed, or -1 (N/A) when there is none.
+func displayPercent(u domain.ProviderUsage) float64 {
+	if d := displayDimension(u); d != nil {
+		return d.PercentUsed
+	}
+	return -1
 }
 
 // formatAccountLine renders one aligned list row:
@@ -142,24 +162,25 @@ func primaryPercent(u domain.ProviderUsage) float64 {
 // provider 与 miniBar 之间留宽间距；miniBar+pct+dot 紧凑；dot 与 fetched 之间留宽间距。
 // fetched 是相对时间(humanizeAgo)。label 用 padDisplay(CJK 显示宽度对齐)。
 func formatAccountLine(u domain.ProviderUsage) string {
+	d := displayDimension(u)
 	pctStr, dot := "N/A", "○"
 	dotCol := colorGray // N/A 默认灰点
-	if u.Primary != nil && u.Primary.Currency != "" {
+	if d != nil && d.Currency != "" {
 		// 余额型：显示余额 + 绿/红点（按余额正负）
-		pctStr = formatMoneyShort(u.Primary.Balance, u.Primary.Currency)
+		pctStr = formatMoneyShort(d.Balance, d.Currency)
 		dot = "●"
-		if u.Primary.Balance > 0 {
+		if d.Balance > 0 {
 			dotCol = colorGreen
 		} else {
 			dotCol = colorRed
 		}
-	} else if u.Primary != nil {
+	} else if d != nil {
 		// 配额型：百分比 + StatusColor
-		pctStr = fmt.Sprintf("%d%%", int(u.Primary.PercentUsed))
+		pctStr = fmt.Sprintf("%d%%", int(d.PercentUsed))
 		dot = "●"
-		dotCol = StatusColor(u.Primary.PercentUsed)
+		dotCol = StatusColor(d.PercentUsed)
 	}
-	pct := primaryPercent(u) // 余额型 PercentUsed=-1 → renderBar(-1,4) 自然灰条
+	pct := displayPercent(u) // 余额型 PercentUsed=-1 → renderBar(-1,4) 自然灰条
 
 	// icon: provider 首字母大写, 品牌色（ProviderTag 的 fg）。
 	_, iconFg := ProviderTag(u.Provider)

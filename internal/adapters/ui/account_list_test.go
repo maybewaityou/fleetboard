@@ -192,14 +192,14 @@ func TestPadDisplay_CJKAlignsByDisplayWidth(t *testing.T) {
 	}
 }
 
-// TestPrimaryPercent covers the helper that StatusColor feeds on: nil → -1,
-// otherwise the dimension's percent.
-func TestPrimaryPercent(t *testing.T) {
-	if got := primaryPercent(domain.ProviderUsage{}); got != -1 {
-		t.Errorf("nil Primary = %v, want -1", got)
+// TestDisplayPercent covers the helper that StatusColor feeds on: no usable
+// dimension → -1, otherwise the displayed dimension's percent.
+func TestDisplayPercent(t *testing.T) {
+	if got := displayPercent(domain.ProviderUsage{}); got != -1 {
+		t.Errorf("nil = %v, want -1", got)
 	}
 	u := domain.ProviderUsage{Primary: &domain.UsageDimension{PercentUsed: 42.5}}
-	if got := primaryPercent(u); got != 42.5 {
+	if got := displayPercent(u); got != 42.5 {
 		t.Errorf("Primary.PercentUsed = %v, want 42.5", got)
 	}
 }
@@ -333,3 +333,40 @@ var errSentinel = errStr("boom")
 type errStr string
 
 func (e errStr) Error() string { return string(e) }
+
+// TestDisplayDimension_NearestReset verifies the list surfaces the dimension
+// whose ResetsAt is soonest (the nearest reset window), not the max-% one.
+func TestDisplayDimension_NearestReset(t *testing.T) {
+	now := time.Now()
+	weekly := domain.UsageDimension{Name: "Weekly", PercentUsed: 80, ResetsAt: now.Add(7 * 24 * time.Hour)}
+	fiveH := domain.UsageDimension{Name: "5h", PercentUsed: 30, ResetsAt: now.Add(5 * time.Hour)}
+	u := domain.ProviderUsage{
+		Provider:   "glm",
+		Dimensions: []domain.UsageDimension{weekly, fiveH},
+	}
+	d := displayDimension(u)
+	if d.Name != "5h" {
+		t.Errorf("displayDimension = %q, want the soonest-reset \"5h\"", d.Name)
+	}
+	if got := displayPercent(u); got != 30 {
+		t.Errorf("displayPercent = %v, want 30 (5h window), not 80 (weekly)", got)
+	}
+}
+
+// TestDisplayDimension_FallbackPrimary verifies balance providers (no ResetsAt)
+// fall back to Primary so the balance still shows.
+func TestDisplayDimension_FallbackPrimary(t *testing.T) {
+	bal := domain.UsageDimension{Name: "Available balance", Balance: 5, Currency: "CNY", PercentUsed: -1}
+	u := domain.ProviderUsage{
+		Provider:   "kimi",
+		Dimensions: []domain.UsageDimension{bal},
+		Primary:    &bal,
+	}
+	d := displayDimension(u)
+	if d.Name != "Available balance" {
+		t.Errorf("fallback = %q, want Primary", d.Name)
+	}
+	if got := displayPercent(u); got != -1 {
+		t.Errorf("balance displayPercent = %v, want -1", got)
+	}
+}
