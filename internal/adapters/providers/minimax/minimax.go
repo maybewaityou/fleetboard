@@ -119,7 +119,7 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 	u.BaseURL = base
 	u.Endpoint = usagePath
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+usagePath, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+usagePath, http.NoBody)
 	if err != nil {
 		u.Err = fmt.Errorf("minimax: build request: %w", err)
 		return u, u.Err

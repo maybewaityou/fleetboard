@@ -357,13 +357,15 @@ func (t *TUI) applyCacheToViews() {
 	if sel != "" {
 		t.accountList.SelectByAccountID(sel)
 	}
-	if u, ok := t.accountList.GetSelected(); ok {
+	u, ok := t.accountList.GetSelected()
+	switch {
+	case ok:
 		t.details.Render(u)
-	} else if len(visible) > 0 {
+	case len(visible) > 0:
 		t.details.Render(visible[0])
-	} else if len(t.allCache) == 0 {
+	case len(t.allCache) == 0:
 		t.details.RenderEmpty("no accounts configured")
-	} else {
+	default:
 		t.details.RenderEmpty("no matching accounts")
 	}
 	if len(t.allCache) == 0 {

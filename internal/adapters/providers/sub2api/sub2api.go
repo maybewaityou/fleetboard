@@ -79,7 +79,7 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 	u.BaseURL = acc.BaseURL
 	u.Endpoint = usagePath
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, acc.BaseURL+usagePath, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, acc.BaseURL+usagePath, http.NoBody)
 	if err != nil {
 		u.Err = fmt.Errorf("sub2api: build request: %w", err)
 		return u, u.Err

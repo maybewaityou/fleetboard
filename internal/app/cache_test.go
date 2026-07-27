@@ -34,7 +34,6 @@ func TestCache_SnapshotIndependence(t *testing.T) {
 	c.ReplaceAll([]domain.ProviderUsage{newUsage("a", 10, false)})
 	got := c.Snapshot()
 	got[0].AccountID = "mutated"
-	got = append(got, newUsage("x", 99, false))
 	again := c.Snapshot()
 	if again[0].AccountID != "a" || len(again) != 1 {
 		t.Fatalf("Snapshot not independent: %+v", again)

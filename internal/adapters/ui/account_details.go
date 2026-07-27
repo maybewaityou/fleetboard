@@ -157,12 +157,12 @@ func renderDimension(dim domain.UsageDimension) string {
 	}
 
 	// 维度名：独立一行，加粗主色。
-	b.WriteString(fmt.Sprintf("  [%s::b]%s[-]\n", colorPrimary, name))
+	fmt.Fprintf(&b, "  [%s::b]%s[-]\n", colorPrimary, name)
 
 	// 余额型：只显示 Balance 行，不画进度条（余额无进度语义）。
 	if dim.Currency != "" {
-		b.WriteString(fmt.Sprintf("    [%s]%-10s[-]  [%s]%s[-]\n",
-			colorSecondary, "Balance:", colorPrimary, formatMoney(dim.Balance, dim.Currency)))
+		fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n",
+			colorSecondary, "Balance:", colorPrimary, formatMoney(dim.Balance, dim.Currency))
 		b.WriteString("\n")
 		return b.String()
 	}
@@ -174,20 +174,20 @@ func renderDimension(dim domain.UsageDimension) string {
 	if pct >= 0 {
 		pctStr = fmt.Sprintf("%d%%", int(pct))
 	}
-	b.WriteString(fmt.Sprintf("    %s  [%s]%s[-]\n", bar, colorPrimary, pctStr))
+	fmt.Fprintf(&b, "    %s  [%s]%s[-]\n", bar, colorPrimary, pctStr)
 
 	// 已用/上限、剩余：仅有绝对额度（Limit>0）时显示，避免纯百分比维度出现无意义的 0/0。
 	if dim.Limit > 0 {
 		used := compactInt(dim.Used, dim.Unit)
 		limit := compactInt(dim.Limit, dim.Unit)
 		left := compactInt(dim.Remaining, dim.Unit)
-		b.WriteString(fmt.Sprintf("    [%s]%-10s[-]  [%s]%s / %s[-]\n", colorSecondary, "Used:", colorPrimary, used, limit))
-		b.WriteString(fmt.Sprintf("    [%s]%-10s[-]  [%s]%s[-]\n", colorSecondary, "Remaining:", colorPrimary, left))
+		fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s / %s[-]\n", colorSecondary, "Used:", colorPrimary, used, limit)
+		fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n", colorSecondary, "Remaining:", colorPrimary, left)
 	}
 
 	// 重置时间：独立一行，零值跳过。
 	if !dim.ResetsAt.IsZero() {
-		b.WriteString(fmt.Sprintf("    [%s]%-10s[-]  [%s]%s[-]\n", colorSecondary, "Resets:", colorPrimary, dim.ResetsAt.Local().Format("2006-01-02 15:04")))
+		fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n", colorSecondary, "Resets:", colorPrimary, dim.ResetsAt.Local().Format("2006-01-02 15:04"))
 	}
 
 	// 维度块之间留一空行，便于扫读。

@@ -113,7 +113,7 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 
 // getJSON 发 GET 并解码进 out；非 2xx 或解码失败返回错误。
 func (p *Provider) getJSON(ctx context.Context, url, bearer string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}

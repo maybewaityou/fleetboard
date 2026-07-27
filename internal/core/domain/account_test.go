@@ -23,7 +23,7 @@ func TestGenerateAccountID(t *testing.T) {
 		t.Fatalf("len(id) = %d, want 12; id=%q", len(id), id)
 	}
 	for _, c := range id {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			t.Errorf("non-hex char %q in id %q", c, id)
 		}
 	}
