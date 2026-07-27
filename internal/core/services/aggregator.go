@@ -81,6 +81,7 @@ func (a *Aggregator) fetchOne(ctx context.Context, acc domain.Account) domain.Ve
 			Vendor:    acc.Vendor,
 			Label:     acc.Label,
 			FetchedAt: time.Now(),
+			Pinned:    acc.Pinned,
 			Err:       fmt.Errorf("%w: %q", ErrUnknownVendor, acc.Vendor),
 		}
 	}
@@ -92,5 +93,7 @@ func (a *Aggregator) fetchOne(ctx context.Context, acc domain.Account) domain.Ve
 	if err != nil && u.Err == nil {
 		u.Err = err
 	}
+	// Pinned 是 UI 元数据（非接口数据），在此单点从 Account 注入，provider 无需关心。
+	u.Pinned = acc.Pinned
 	return u
 }

@@ -53,6 +53,7 @@ func defaultHints() string {
 		"[" + k + "]a[-] New  • " +
 		"[" + k + "]e[-] Edit  • " +
 		"[" + k + "]d[-] Delete  • " +
+		"[" + k + "]p[-] Pin  • " +
 		"[" + k + "]r[-] Refresh  • " + // refresh selected account
 		"[" + k + "]R[-] Refresh All  • " + // refresh every account
 		"[" + k + "]/[-] Search  • " +

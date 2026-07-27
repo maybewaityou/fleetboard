@@ -140,6 +140,24 @@ func TestFormatAccountLine_UnknownVendor(t *testing.T) {
 	}
 }
 
+// TestFormatAccountLine_Pinned 验证置顶行首显示绿色 📌 marker；未置顶则无 📌。
+func TestFormatAccountLine_Pinned(t *testing.T) {
+	u := domain.VendorUsage{
+		AccountID: "p1", Vendor: "glm", Label: "pinned-acct",
+		Primary: &domain.UsageDimension{PercentUsed: 50},
+		Pinned:  true,
+	}
+	got := formatAccountLine(u)
+	if !strings.Contains(got, "["+colorGreen+"]📌[-]") {
+		t.Errorf("pinned row missing 📌 marker: %q", got)
+	}
+
+	u.Pinned = false
+	if got2 := formatAccountLine(u); strings.Contains(got2, "📌") {
+		t.Errorf("unpinned row must not show 📌: %q", got2)
+	}
+}
+
 // TestFormatAccountLine_FetchedTime 验证行尾显示最近刷新相对时间（Xm ago）。
 func TestFormatAccountLine_FetchedTime(t *testing.T) {
 	u := domain.VendorUsage{

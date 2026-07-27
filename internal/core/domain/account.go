@@ -21,4 +21,5 @@ type Account struct {
 	Label    string `yaml:"label"`
 	BaseURL  string `yaml:"base_url,omitempty"` // 可选，覆盖默认
 	TokenEnv string `yaml:"token_env"`          // 环境变量名，token 从此读
+	Pinned   bool   `yaml:"pinned,omitempty"`   // 置顶标记；UI 置顶排序 + 📌 marker
 }

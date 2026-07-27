@@ -26,8 +26,8 @@ const (
 )
 
 // VendorUsage 是一次拉取的结果。一个账号可有多个额度维度。
-// Basic Info 字段（BaseURL/Endpoint/PlanLevel/Model/WindowStart/WindowEnd）由 adapter
-// 从响应/请求中填充，供 details 页面展示账号基本信息；不同 vendor 填不同子集（零值=无）。
+// Basic Info 字段（BaseURL/Endpoint/PlanLevel/Model）由 adapter 从响应/请求中填充，
+// 供 details 页面展示账号基本信息；不同 vendor 填不同子集（零值=无）。
 type VendorUsage struct {
 	AccountID  string
 	Vendor     string
@@ -37,13 +37,14 @@ type VendorUsage struct {
 	FetchedAt  time.Time
 	Err        error
 
+	// Pinned 来自 Account.Pinned（aggregator 注入）；UI 据此置顶排序并显示 📌。
+	Pinned bool
+
 	// Basic Info（adapter 填充，UI 读取）。
-	BaseURL     string    // 实际请求用的 base（acc.BaseURL 或默认）
-	Endpoint    string    // 刷新接口路径
-	PlanLevel   string    // 套餐等级：GLM data.level；MiniMax 无
-	Model       string    // 模型：MiniMax model；GLM 无
-	WindowStart time.Time // 计费窗口起：MiniMax start_time；GLM 无
-	WindowEnd   time.Time // 计费窗口止：MiniMax end_time；GLM 无
+	BaseURL   string // 实际请求用的 base（acc.BaseURL 或默认）
+	Endpoint  string // 刷新接口路径
+	PlanLevel string // 套餐等级：GLM data.level；MiniMax 无
+	Model     string // 模型：MiniMax model；GLM 无
 }
 
 // UsageDimension 是单个额度维度（一个窗口/一档配额）。

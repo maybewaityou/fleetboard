@@ -20,6 +20,7 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -69,6 +70,7 @@ type Config struct {
 	OnDeleteAccount func(id string) []domain.VendorUsage                     // d — 删除账号
 	OnEditAccount   func(id string, acc domain.Account) []domain.VendorUsage // e — 编辑账号
 	OnLoadAccount   func(id string) (domain.Account, bool)                   // 编辑时反查账号预填表单
+	OnTogglePin     func(id string) []domain.VendorUsage                     // p — 置顶/取消置顶
 }
 
 // TUI is the runnable tview application. It implements ports.View (Run + Render).
@@ -103,6 +105,7 @@ type TUI struct {
 	onDeleteAccount func(id string) []domain.VendorUsage
 	onEditAccount   func(id string, acc domain.Account) []domain.VendorUsage
 	onLoadAccount   func(id string) (domain.Account, bool)
+	onTogglePin     func(id string) []domain.VendorUsage
 
 	// statusTimer reverts a transient footer message back to the default hints.
 	statusTimer *time.Timer
@@ -126,6 +129,7 @@ func NewTUI(cfg Config) *TUI {
 		onDeleteAccount: cfg.OnDeleteAccount,
 		onEditAccount:   cfg.OnEditAccount,
 		onLoadAccount:   cfg.OnLoadAccount,
+		onTogglePin:     cfg.OnTogglePin,
 	}
 }
 
@@ -143,6 +147,18 @@ func (t *TUI) Run() error {
 	t.app.EnableMouse(true)
 	t.queueDraw = func(f func()) { t.app.QueueUpdateDraw(f) }
 	t.buildComponents().buildLayout().bindEvents().loadInitialData()
+
+	// clock ticker：每 clockTickInterval 重渲列表，让 "Last Refreshed: Xm ago" 相对
+	// 时间持续推进，而非停在首次渲染时的 "just now"。tick 走 queueDraw，与 Render 同一
+	// 主循环通道；defer Stop 保证 TUI 退出时 goroutine 不泄漏。
+	ticker := time.NewTicker(clockTickInterval)
+	defer ticker.Stop()
+	go func() {
+		for range ticker.C {
+			t.queueDraw(t.applyCacheToViews)
+		}
+	}()
+
 	t.app.SetRoot(t.root, true)
 	t.focusList()
 	if t.logger != nil {
@@ -172,14 +188,25 @@ func (t *TUI) Run() error {
 func (t *TUI) Render(usages []domain.VendorUsage) {
 	if t.queueDraw == nil {
 		// Run() hasn't started yet (e.g. unit test); paint synchronously.
-		t.allCache = usages
-		t.applyCacheToViews()
+		t.applyDataset(usages)
 		return
 	}
 	t.queueDraw(func() {
-		t.allCache = usages
-		t.applyCacheToViews()
+		t.applyDataset(usages)
 	})
+}
+
+// applyDataset synchronously writes the dataset to allCache and refreshes the
+// views. Callers already running on the tview main loop (input-capture handlers,
+// modal/form button callbacks) MUST use this instead of Render(): Render routes
+// the repaint through QueueUpdateDraw, which blocks until the main loop runs the
+// queued func — but the main loop is busy in that very handler, so it deadlocks
+// and freezes the UI (the 'p' freeze). Here we mutate directly; tview redraws
+// automatically once the handler returns (Run's event loop calls a.draw() right
+// after input capture / InputHandler returns).
+func (t *TUI) applyDataset(usages []domain.VendorUsage) {
+	t.allCache = usages
+	t.applyCacheToViews()
 }
 
 func (t *TUI) buildComponents() *TUI {
@@ -239,7 +266,7 @@ func (t *TUI) loadInitialData() *TUI {
 // entry point used by both Render() (external) and loadInitialData() (startup),
 // so search filtering and selection preservation always compose.
 func (t *TUI) applyCacheToViews() {
-	visible := t.visibleUsages()
+	visible := t.visibleSorted()
 	sel := t.selectedID // snapshot: UpdateUsages 的 SetCurrentItem(0) 经 SetChangedFunc 改写 selectedID（#6）
 	t.accountList.UpdateUsages(visible)
 	if sel != "" {
@@ -272,7 +299,7 @@ func (t *TUI) handleSelectionChange(u domain.VendorUsage) {
 // selection is re-resolved after the filter so the details pane tracks the top
 // match rather than going stale.
 func (t *TUI) handleSearchInput(_ string) {
-	visible := t.visibleUsages()
+	visible := t.visibleSorted()
 	sel := t.selectedID // snapshot: UpdateUsages 的 SetCurrentItem(0) 经 SetChangedFunc 改写 selectedID（#6）
 	t.accountList.UpdateUsages(visible)
 	if sel != "" {
@@ -303,6 +330,17 @@ func (t *TUI) visibleUsages() []domain.VendorUsage {
 		}
 	}
 	return out
+}
+
+// visibleSorted 返回过滤后的可见账号并按置顶优先稳定排序（pinned 排前，其余保持原序）。
+// 供所有渲染路径（applyCacheToViews/handleSearchInput）共用，确保 pin 状态变化或搜索
+// 过滤后，置顶项始终钉在列表顶部。
+func (t *TUI) visibleSorted() []domain.VendorUsage {
+	visible := t.visibleUsages()
+	sort.SliceStable(visible, func(i, j int) bool {
+		return visible[i].Pinned && !visible[j].Pinned
+	})
+	return visible
 }
 
 func (t *TUI) currentSearchQuery() string {
@@ -352,9 +390,12 @@ func (t *TUI) handleGlobalKeys(e *tcell.EventKey) *tcell.EventKey {
 	case 'd':
 		t.confirmDelete()
 		return nil
+	case 'p':
+		t.doTogglePin()
+		return nil
 	case 's':
 		// sort not yet implemented; surface explicitly rather than swallowing.
-		t.setStatusTemporary("[" + colorYellow + "]sort not wired yet[-]")
+		t.setStatusTemporary("[" + colorYellow + "]Sort not wired yet[-]")
 		return nil
 	}
 	return e
@@ -370,34 +411,55 @@ func (t *TUI) handleGlobalKeys(e *tcell.EventKey) *tcell.EventKey {
 // discipline Render uses via queueDraw).
 func (t *TUI) doRefreshSelected() {
 	if t.refreshSelected == nil {
-		t.setStatusTemporary("[" + colorYellow + "]refresh not wired[-]")
+		t.setStatusTemporary("[" + colorYellow + "]Refresh not wired[-]")
 		return
 	}
-	t.setStatusTemporary("[" + colorCyan + "]refreshing selected…[-]")
+	t.setStatusTemporary("[" + colorCyan + "]Refreshing selected…[-]")
 	selectedID := t.selectedID
 	go func() {
 		usages := t.refreshSelected(selectedID)
 		if usages != nil {
 			t.Render(usages)
 		}
-		t.queueDraw(func() { t.setStatusTemporary("[" + colorGreen + "]refreshed selected[-]") })
+		t.queueDraw(func() { t.setStatusTemporary("[" + colorGreen + "]Refreshed selected[-]") })
 	}()
 }
 
 // doRefreshAll is the R analogue — refresh every account.
 func (t *TUI) doRefreshAll() {
 	if t.refreshAll == nil {
-		t.setStatusTemporary("[" + colorYellow + "]refresh not wired[-]")
+		t.setStatusTemporary("[" + colorYellow + "]Refresh not wired[-]")
 		return
 	}
-	t.setStatusTemporary("[" + colorCyan + "]refreshing all…[-]")
+	t.setStatusTemporary("[" + colorCyan + "]Refreshing all…[-]")
 	go func() {
 		usages := t.refreshAll()
 		if usages != nil {
 			t.Render(usages)
 		}
-		t.queueDraw(func() { t.setStatusTemporary(fmt.Sprintf("["+colorGreen+"]refreshed %d accounts[-]", len(usages))) })
+		t.queueDraw(func() { t.setStatusTemporary(fmt.Sprintf("["+colorGreen+"]Refreshed %d accounts[-]", len(usages))) })
 	}()
+}
+
+// doTogglePin 切换当前选中账号的置顶状态。回调同步执行（只改配置 + 缓存，不联网），
+// 返回的新数据集经 Render 重渲——置顶项经 visibleSorted 排到顶部、📌 marker 随之更新，
+// 不做任何特判（与 lazytmux 的"单一 refresh 路径"一致）。
+func (t *TUI) doTogglePin() {
+	if t.onTogglePin == nil {
+		t.setStatusTemporary("[" + colorYellow + "]Pin not wired[-]")
+		return
+	}
+	if t.selectedID == "" {
+		t.setStatusTemporary("[" + colorYellow + "]No account selected[-]")
+		return
+	}
+	if usages := t.onTogglePin(t.selectedID); usages != nil {
+		// doTogglePin runs on the tview main loop (input-capture handler), so we
+		// apply the dataset synchronously rather than via Render() — Render would
+		// QueueUpdateDraw and deadlock waiting for the main loop this handler is
+		// already occupying (the 'p' freeze). tview redraws after we return.
+		t.applyDataset(usages)
+	}
 }
 
 func (t *TUI) searchBarHasFocus() bool {
@@ -425,6 +487,10 @@ func (t *TUI) blurSearchBar() {
 // Any previously-pending timer is stopped first so a rapid sequence of
 // statuses does not fight itself.
 const statusToastTimeout = 3 * time.Second
+
+// clockTickInterval 是列表相对时间（"Last Refreshed: Xm ago"）的刷新粒度。30s 足以让
+// "just now" 在一分钟后推进到 "1m ago"，又不至于频繁重绘整个列表。
+const clockTickInterval = 30 * time.Second
 
 func (t *TUI) setStatusTemporary(msg string) {
 	if t.statusTimer != nil {

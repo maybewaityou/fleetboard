@@ -16,6 +16,7 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -24,8 +25,8 @@ import (
 	"github.com/maybewaityou/fleetboard/internal/core/domain"
 )
 
-// barWidth is the number of cells in a details progress bar. 20 keeps the whole
-// "█░ 85% used/limit left resets" line within a 2/5-width pane at 80 cols.
+// barWidth is the number of cells in a details progress bar. The bar sits on its
+// own line under the dimension name, so 20 fits a 2/5-width pane at 80 cols.
 const barWidth = 20
 
 // AccountDetails is the right-hand pane showing the selected account's header
@@ -42,7 +43,8 @@ func NewAccountDetails() *AccountDetails {
 	d.SetBorder(true).
 		SetTitle(" Details ").
 		SetTitleColor(tcell.GetColor(colorTitle)).
-		SetBorderColor(tcell.GetColor(colorBorder))
+		SetBorderColor(tcell.GetColor(colorBorder)).
+		SetBorderPadding(0, 0, 1, 1) // 左右各 1 空格，内容不再贴边框（与列表一致）
 	// Placeholder states (initial + empty) read better centered; Render flips
 	// back to left alignment for multi-line content (mirrors lazytmux).
 	d.SetTextAlign(tview.AlignCenter)
@@ -71,27 +73,37 @@ func (d *AccountDetails) Render(u domain.VendorUsage) {
 	// Basic Info：账号基本信息（adapter 填充）。Plan 优先 PlanLevel(GLM)，否则 Model(MiniMax)。
 	b.WriteString("[" + colorTitle + "::b]Basic Info[-]\n")
 	plan := firstNonEmpty(u.PlanLevel, u.Model, "—")
-	window := "—"
-	if !u.WindowStart.IsZero() && !u.WindowEnd.IsZero() {
-		window = u.WindowStart.Local().Format("2006-01-02 15:04") + " → " + u.WindowEnd.Local().Format("2006-01-02 15:04")
-	}
 	refreshed := "—"
 	if !u.FetchedAt.IsZero() {
 		refreshed = u.FetchedAt.Local().Format("2006-01-02 15:04")
 	}
+	// 字段顺序参考 lazytmux：主体标识在前，时间次之，Pinned（布尔状态）置末。
 	b.WriteString(basicInfoLine("Plan", plan))
-	b.WriteString(basicInfoLine("Vendor", u.Vendor))
+	b.WriteString(vendorInfoLine(u.Vendor))
 	b.WriteString(basicInfoLine("BaseURL", firstNonEmpty(u.BaseURL, "—")))
 	b.WriteString(basicInfoLine("Endpoint", firstNonEmpty(u.Endpoint, "—")))
-	b.WriteString(basicInfoLine("Window", window))
 	b.WriteString(basicInfoLine("Refreshed", refreshed))
+	b.WriteString(basicInfoLine("Pinned", pinnedStr(u.Pinned)))
 
-	// Quota Dimensions：各维度单独行（renderDimension 内 name|bar|pct 固定宽对齐）。
+	// Quota Dimensions：短期额度优先——按 ResetsAt 升序稳定排序（零值置后），
+	// 让 5h 滚动窗口排在 weekly/monthly 之前。各维度由 renderDimension 渲染为独立多行块。
 	b.WriteString("\n[" + colorTitle + "::b]Quota Dimensions[-]\n")
-	if len(u.Dimensions) == 0 {
+	dims := make([]domain.UsageDimension, len(u.Dimensions))
+	copy(dims, u.Dimensions)
+	sort.SliceStable(dims, func(i, j int) bool {
+		ti, tj := dims[i].ResetsAt, dims[j].ResetsAt
+		if ti.IsZero() {
+			return false // 无重置信息的维度排最后
+		}
+		if tj.IsZero() {
+			return true
+		}
+		return ti.Before(tj)
+	})
+	if len(dims) == 0 {
 		b.WriteString("[" + colorSecondary + "]no quota dimensions[-]\n")
 	}
-	for _, dim := range u.Dimensions {
+	for _, dim := range dims {
 		b.WriteString(renderDimension(dim))
 	}
 
@@ -113,6 +125,16 @@ func basicInfoLine(key, val string) string {
 	return fmt.Sprintf("  [%s]%-10s[-]  [%s]%s[-]\n", colorSecondary, key+":", colorPrimary, val)
 }
 
+// vendorInfoLine 渲染 Basic Info 中的 Vendor 行：key 用与 basicInfoLine 一致的
+// %-10s 对齐，value 则用与列表条目完全一致的 chip（accent 背景、黑字）而非纯文本。
+func vendorInfoLine(vendor string) string {
+	v := vendor
+	if v == "" {
+		v = "—"
+	}
+	return fmt.Sprintf("  [%s]%-10s[-]  [black:%s] %s [-:-:-]\n", colorSecondary, "Vendor:", colorAccent, v)
+}
+
 // RenderEmpty swaps the pane for a centered placeholder when nothing is
 // selected (e.g. the account list is empty).
 func (d *AccountDetails) RenderEmpty(msg string) {
@@ -127,56 +149,92 @@ func (d *AccountDetails) RenderEmpty(msg string) {
 // A N/A dimension (PercentUsed < 0) renders an all-gray hollow bar and "N/A"
 // instead of a number, so a partially-failed account still reads cleanly.
 func renderDimension(dim domain.UsageDimension) string {
-	pct := dim.PercentUsed
-	bar := renderBar(pct, barWidth)
-
-	pctStr := "N/A"
-	if pct >= 0 {
-		pctStr = fmt.Sprintf("%d%%", int(pct))
-	}
-
-	used := compactInt(dim.Used, dim.Unit)
-	limit := compactInt(dim.Limit, dim.Unit)
-	left := compactInt(dim.Remaining, dim.Unit)
-
-	reset := "—"
-	if !dim.ResetsAt.IsZero() {
-		reset = dim.ResetsAt.Local().Format("2006-01-02 15:04")
-	}
+	var b strings.Builder
 
 	name := dim.Name
 	if name == "" {
 		name = "—"
 	}
 
-	return fmt.Sprintf("  [%s::b]%-16s[-] %s  [%s]%-4s[-]  [%s]%s/%s[-]  [%s]•[-]  [%s]%s left[-]  [%s]•[-]  [%s]resets %s[-]\n",
-		colorPrimary, name,
-		bar,
-		colorPrimary, pctStr,
-		colorPrimary, used, limit,
-		colorSecondary,
-		colorPrimary, left,
-		colorSecondary,
-		colorSecondary, reset,
-	)
+	// 维度名：独立一行，加粗主色。
+	b.WriteString(fmt.Sprintf("  [%s::b]%s[-]\n", colorPrimary, name))
+
+	// 进度条 + 百分比：独立一行。
+	pct := dim.PercentUsed
+	bar := renderBar(pct, barWidth)
+	pctStr := "N/A"
+	if pct >= 0 {
+		pctStr = fmt.Sprintf("%d%%", int(pct))
+	}
+	b.WriteString(fmt.Sprintf("    %s  [%s]%s[-]\n", bar, colorPrimary, pctStr))
+
+	// 已用/上限、剩余：仅有绝对额度（Limit>0）时显示，避免纯百分比维度出现无意义的 0/0。
+	if dim.Limit > 0 {
+		used := compactInt(dim.Used, dim.Unit)
+		limit := compactInt(dim.Limit, dim.Unit)
+		left := compactInt(dim.Remaining, dim.Unit)
+		b.WriteString(fmt.Sprintf("    [%s]%-10s[-]  [%s]%s / %s[-]\n", colorSecondary, "Used:", colorPrimary, used, limit))
+		b.WriteString(fmt.Sprintf("    [%s]%-10s[-]  [%s]%s[-]\n", colorSecondary, "Remaining:", colorPrimary, left))
+	}
+
+	// 重置时间：独立一行，零值跳过。
+	if !dim.ResetsAt.IsZero() {
+		b.WriteString(fmt.Sprintf("    [%s]%-10s[-]  [%s]%s[-]\n", colorSecondary, "Resets:", colorPrimary, dim.ResetsAt.Local().Format("2006-01-02 15:04")))
+	}
+
+	// 维度块之间留一空行，便于扫读。
+	b.WriteString("\n")
+	return b.String()
 }
 
+// eighths 是 1/8 块渐变字符（下标 1..7），让窄进度条（如列表 4 格）也能呈现亚
+// 格子精度——23% 在 4 格 = 32 sub-units 的第 7 级，渲染为单个 ▉ 而非 int() 取整为 0。
+var eighths = []string{"", "▏", "▎", "▍", "▌", "▋", "▊", "▉"}
+
 // renderBar draws a width-cell bar filled proportionally to pct, colored by
-// StatusColor. pct<0 (N/A) yields an all-gray hollow bar. Width is parameterized
-// so the list's miniBar (8) and details' bar (20) share one implementation.
+// StatusColor. Sub-cell precision uses the 1/8 block glyphs above so a 4-cell
+// miniBar still shows ~23% as a near-full first cell instead of rounding to 0.
+// pct<0 (N/A) yields an all-gray hollow bar. Width is parameterized so the
+// list's miniBar (4) and details' bar (20) share one implementation.
 func renderBar(pct float64, width int) string {
 	if pct < 0 {
 		return "[" + colorGray + "]" + strings.Repeat("░", width) + "[-]"
 	}
-	n := int(pct / 100.0 * float64(width))
-	if n > width {
-		n = width
+	if pct > 100 {
+		pct = 100
 	}
-	if n < 0 {
-		n = 0
+	subs := int(pct / 100.0 * float64(width) * 8)
+	if subs > width*8 {
+		subs = width * 8
+	}
+	if subs < 0 {
+		subs = 0
+	}
+	full := subs / 8
+	rem := subs % 8
+	hollow := width - full
+	if rem > 0 {
+		hollow-- // 部分块占掉 1 格
 	}
 	col := StatusColor(pct)
-	return "[" + col + "]" + strings.Repeat("█", n) + strings.Repeat("░", width-n) + "[-]"
+	var b strings.Builder
+	b.WriteString("[" + col + "]")
+	b.WriteString(strings.Repeat("█", full))
+	if rem > 0 {
+		b.WriteString(eighths[rem])
+	}
+	b.WriteString(strings.Repeat("░", hollow))
+	b.WriteString("[-]")
+	return b.String()
+}
+
+// pinnedStr renders the Pinned bool as true/false for the Basic Info table,
+// mirroring lazytmux's pinnedStr (which itself matches lazyssh).
+func pinnedStr(p bool) string {
+	if p {
+		return "true"
+	}
+	return "false"
 }
 
 // compactInt renders an int64 with k/M suffixes for readability and appends the

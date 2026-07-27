@@ -30,6 +30,16 @@ func TestBasicInfoLine(t *testing.T) {
 	}
 }
 
+// TestPinnedStr 验证 Pinned 渲染为 true/false（对齐 lazytmux 的 pinnedStr）。
+func TestPinnedStr(t *testing.T) {
+	if got := pinnedStr(true); got != "true" {
+		t.Errorf("pinnedStr(true) = %q, want true", got)
+	}
+	if got := pinnedStr(false); got != "false" {
+		t.Errorf("pinnedStr(false) = %q, want false", got)
+	}
+}
+
 // TestFirstNonEmpty 验证取首个非空，都空返回最后参数作 fallback。
 func TestFirstNonEmpty(t *testing.T) {
 	if got := firstNonEmpty("a", "b"); got != "a" {
@@ -40,5 +50,30 @@ func TestFirstNonEmpty(t *testing.T) {
 	}
 	if got := firstNonEmpty("", "", "—"); got != "—" {
 		t.Errorf("firstNonEmpty('','','—') fallback = %q, want —", got)
+	}
+}
+
+// TestRenderBar_SubCell 验证亚格子精度：4 格宽度下 23% 不再被 int() 取整为 0，
+// 而是渲染出单个部分块 ▉（eighths[7]）+ 空格；颜色随进度（green<70）。
+func TestRenderBar_SubCell(t *testing.T) {
+	got := renderBar(23, 4) // 23% × 4格 × 8 = 7.36 → subs=7 → ▉ + 3 hollow
+	if !strings.Contains(got, "▉") {
+		t.Errorf("23%% at width 4 should render a ▉ sub-cell, got: %q", got)
+	}
+	if !strings.Contains(got, "["+colorGreen+"]") {
+		t.Errorf("23%% bar should be green: %q", got)
+	}
+	if strings.Contains(got, "█") {
+		t.Errorf("23%% at width 4 should have no full cell, got: %q", got)
+	}
+}
+
+// TestRenderBar_FullCells 验证整格边界与颜色梯度：50%=2 整格(green)，95%=红色。
+func TestRenderBar_FullCells(t *testing.T) {
+	if got := renderBar(50, 4); !strings.Contains(got, "["+colorGreen+"]██░░") {
+		t.Errorf("50%% at width 4 = 2 full + 2 hollow green, got: %q", got)
+	}
+	if got := renderBar(95, 4); !strings.Contains(got, "["+colorRed+"]") {
+		t.Errorf("95%% bar should be red: %q", got)
 	}
 }

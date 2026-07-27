@@ -23,7 +23,7 @@
 //
 // 响应字段 usage_percent（或驼峰 usagePercent 变体）表示【已用】比例（字段名 usage=已用，
 // 实测 unused=0），故 PercentUsed = usagePercent 直接用，不反转。model_remains[] 含
-// start_time/end_time（Unix 秒）描述当前计费窗口，取首项 end_time 作 ResetsAt。
+// start_time/end_time（Unix 毫秒）描述当前计费窗口，取首项 end_time 作 ResetsAt。
 //
 // 最终映射为单维度 UsageDimension{Name:"Token Plan",
 // PercentUsed: usagePercent, Unit:"%", ResetsAt: end_time, Source:"api-balanced"}，
@@ -149,19 +149,29 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.V
 	}
 
 	if len(r.ModelRemains) > 0 {
-		mr := r.ModelRemains[0]
-		u.Model = mr.Model
-		u.WindowStart = time.Unix(mr.StartTime, 0).UTC()
-		u.WindowEnd = time.Unix(mr.EndTime, 0).UTC()
+		u.Model = r.ModelRemains[0].Model
 	}
 	u.Dimensions = []domain.UsageDimension{buildDimension(r)}
 	u.SelectPrimary()
 	return u, nil
 }
 
+// unixTime 解析 MiniMax 时间戳为 time.Time。真实接口的 start_time/end_time 为
+// Unix 毫秒（13 位）；保留对偶发秒级（10 位）的兼容，与 glm.parseResetTime 同策略。
+// 零值返回零时间，UI 层据此跳过渲染。
+func unixTime(ts int64) time.Time {
+	if ts == 0 {
+		return time.Time{}
+	}
+	if ts >= 1_000_000_000_000 { // 13 位 = 毫秒
+		return time.Unix(ts/1000, 0).UTC()
+	}
+	return time.Unix(ts, 0).UTC()
+}
+
 // buildDimension 把 MiniMax 响应映射为单维度 UsageDimension。
 //   - usage_percent 是【已用】比例（字段名 usage=已用）→ PercentUsed = usagePercent（直接用，不反转）
-//   - ResetsAt 取 model_remains[0].end_time（Unix 秒）；空数组则零值（UI 层会跳过）
+//   - ResetsAt 取 model_remains[0].end_time（Unix 毫秒）；空数组则零值（UI 层会跳过）
 func buildDimension(r apiResp) domain.UsageDimension {
 	d := domain.UsageDimension{
 		Name:        nameTokenPlan,
@@ -170,7 +180,7 @@ func buildDimension(r apiResp) domain.UsageDimension {
 		Source:      sourceTag,
 	}
 	if len(r.ModelRemains) > 0 {
-		d.ResetsAt = time.Unix(r.ModelRemains[0].EndTime, 0).UTC()
+		d.ResetsAt = unixTime(r.ModelRemains[0].EndTime)
 	}
 	return d
 }

@@ -170,6 +170,22 @@ func run(sugar *zap.SugaredLogger) error {
 	onLoadAccount := func(id string) (domain.Account, bool) {
 		return findAccount(cfg.Accounts, id)
 	}
+	onTogglePin := func(id string) []domain.VendorUsage {
+		pinned := false
+		for i := range cfg.Accounts {
+			if cfg.Accounts[i].ID == id {
+				cfg.Accounts[i].Pinned = !cfg.Accounts[i].Pinned
+				pinned = cfg.Accounts[i].Pinned
+				break
+			}
+		}
+		if err := store.Save(cfg); err != nil {
+			sugar.Warnw("save config (pin) failed", "error", err)
+		}
+		// 不重新拉取：pin 只改元数据，就地把缓存里对应条目的 Pinned 同步翻转即可。
+		cache.setPinned(id, pinned)
+		return cache.snapshot()
+	}
 
 	t := ui.NewTUI(ui.Config{
 		Logger:          sugar,
@@ -182,6 +198,7 @@ func run(sugar *zap.SugaredLogger) error {
 		OnDeleteAccount: onDeleteAccount,
 		OnEditAccount:   onEditAccount,
 		OnLoadAccount:   onLoadAccount,
+		OnTogglePin:     onTogglePin,
 	})
 
 	// ctx backs the r/R + CRUD callbacks (FetchAll/FetchOne) for the lifetime of
@@ -239,6 +256,20 @@ func (c *usageCache) updateOne(u domain.VendorUsage) {
 	// it does not we keep the cache complete rather than silently dropping the
 	// freshly-fetched account.
 	c.current = append(c.current, u)
+}
+
+// setPinned flips the Pinned flag on the cached entry for id, without refetching.
+// Used by the pin-toggle callback so toggling pin does not trigger a network
+// refresh — only the metadata changes, and the UI re-renders from the snapshot.
+func (c *usageCache) setPinned(id string, pinned bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i := range c.current {
+		if c.current[i].AccountID == id {
+			c.current[i].Pinned = pinned
+			return
+		}
+	}
 }
 
 // findAccount resolves an AccountID back to its full config (FetchOne needs the

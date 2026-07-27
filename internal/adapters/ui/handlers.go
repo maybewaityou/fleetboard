@@ -63,7 +63,7 @@ func (t *TUI) openAccountForm(edit bool) {
 	editingID := ""
 	if edit {
 		if t.selectedID == "" {
-			t.setStatusTemporary("[" + colorYellow + "]no account selected[-]")
+			t.setStatusTemporary("[" + colorYellow + "]No account selected[-]")
 			return
 		}
 		if t.onLoadAccount != nil {
@@ -84,7 +84,9 @@ func (t *TUI) openAccountForm(edit bool) {
 			usages = t.onSaveAccount(acc)
 		}
 		if usages != nil {
-			t.Render(usages)
+			// 表单提交回调在 tview 主循环执行——与 doTogglePin 同理，必须同步刷新，
+			// 不能走 Render(QueueUpdateDraw)，否则主循环自死锁。
+			t.applyDataset(usages)
 		}
 	}).OnCancel(t.closeForm)
 	t.app.SetRoot(form.Primitive(), true)
@@ -100,7 +102,7 @@ func (t *TUI) closeForm() {
 // confirmDelete 弹出确认对话框；确认后调 onDeleteAccount(selectedID) 并 Render 新数据集。
 func (t *TUI) confirmDelete() {
 	if t.selectedID == "" {
-		t.setStatusTemporary("[" + colorYellow + "]no account selected[-]")
+		t.setStatusTemporary("[" + colorYellow + "]No account selected[-]")
 		return
 	}
 	id := t.selectedID
@@ -111,7 +113,9 @@ func (t *TUI) confirmDelete() {
 			if buttonLabel == "Delete" && t.onDeleteAccount != nil {
 				t.closeModal()
 				if usages := t.onDeleteAccount(id); usages != nil {
-					t.Render(usages)
+					// modal 回调在 tview 主循环执行——与 doTogglePin 同理，必须同步刷新，
+					// 不能走 Render(QueueUpdateDraw)，否则主循环自死锁。
+					t.applyDataset(usages)
 				}
 				return
 			}

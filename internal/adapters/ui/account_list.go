@@ -49,7 +49,8 @@ func (al *AccountList) build() {
 		SetTitle(" Accounts ").
 		SetTitleAlign(tview.AlignCenter).
 		SetBorderColor(tcell.GetColor(colorBorder)).
-		SetTitleColor(tcell.GetColor(colorTitle))
+		SetTitleColor(tcell.GetColor(colorTitle)).
+		SetBorderPadding(0, 0, 1, 1) // 左右各 1 空格：条目与选中高亮不再紧贴边框
 	al.List.
 		SetSelectedBackgroundColor(tcell.GetColor(colorSelected)).
 		SetSelectedTextColor(tcell.GetColor(colorPrimary)).
@@ -160,14 +161,21 @@ func formatAccountLine(u domain.VendorUsage) string {
 		label = "[" + colorRed + "]⚠[-] " + u.Label
 	}
 
+	// pin marker：置顶显示绿色 📌，否则两空格保持列对齐（emoji 显示宽 2）。
+	pin := "  "
+	if u.Pinned {
+		pin = "[" + colorGreen + "]📌[-]"
+	}
+
 	fetched := humanizeAgo(u.FetchedAt)
 
-	// 列布局：icon(1+留白) | label pad22 | 4sp | vendor chip | 4sp | miniBar8 sp pct(pad4) dot | 4sp | fetched
-	return fmt.Sprintf(" [%s]%s[-] %s    [black:%s] %-7s [-:-:-]    %s [%s]%-4s[-][%s]%s[-]    [%s]%s[-]",
+	// 列布局：pin(2) icon(1) sp | label pad16 | 1sp | vendor chip | 2sp | miniBar4 sp pct(pad4) dot | 4sp | Last Refreshed: fetched
+	return fmt.Sprintf("%s [%s]%s[-] %s [black:%s] %-7s [-:-:-]  %s [%s]%-4s[-][%s]%s[-]    [%s]Last Refreshed: %s[-]",
+		pin,
 		iconFg, icon,
-		padDisplay(label, 22),
+		padDisplay(label, 16),
 		colorAccent, u.Vendor,
-		renderBar(pct, 8),
+		renderBar(pct, 4),
 		colorPrimary, pctStr,
 		dotCol, dot,
 		colorSecondary, fetched)

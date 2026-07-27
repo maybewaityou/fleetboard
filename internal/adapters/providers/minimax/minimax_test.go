@@ -27,9 +27,9 @@ import (
 
 // goldenPayload 是 MiniMax token_plan/remains 接口的固定金样本：
 //   - usagePercent = 12（已用 12%，直接用不反转）
-//   - model_remains[0].end_time = 1711929600（2024-04-01 00:00:00 UTC）→ ResetsAt
-//   - start_time = 1711843200（2024-03-31 00:00:00 UTC）
-const goldenPayload = `{"usagePercent":12,"model_remains":[{"model":"abab6","start_time":1711843200,"end_time":1711929600}]}`
+//   - model_remains[0].end_time = 1711929600000（2024-04-01 00:00:00 UTC，毫秒）→ ResetsAt
+//   - start_time = 1711843200000（2024-03-31 00:00:00 UTC，毫秒）
+const goldenPayload = `{"usagePercent":12,"model_remains":[{"model":"abab6","start_time":1711843200000,"end_time":1711929600000}]}`
 
 func TestVendorReturnsMiniMax(t *testing.T) {
 	if got := New().Vendor(); got != "minimax" {
@@ -41,7 +41,7 @@ func TestVendorReturnsMiniMax(t *testing.T) {
 //
 //	(a) Authorization 头是 "Bearer KEY123"（必须有 Bearer 前缀——区别于 GLM 裸 key）
 //	(b) PercentUsed == 12（usagePercent=12 是「已用」，直接用不反转）
-//	(c) ResetsAt 取自 end_time（Unix 秒 1711929600 → 2024-04-01 00:00:00 UTC）
+//	(c) ResetsAt 取自 end_time（Unix 毫秒 1711929600000 → 2024-04-01 00:00:00 UTC）
 func TestFetchUsageGolden(t *testing.T) {
 	var gotAuth, gotCT, gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -90,8 +90,8 @@ func TestFetchUsageGolden(t *testing.T) {
 		t.Errorf("dim.Source = %q, want api-balanced", d.Source)
 	}
 
-	// (c) ResetsAt 来自 end_time（Unix 秒 1711929600 → 2024-04-01 00:00:00 UTC）
-	wantReset := time.Unix(1711929600, 0).UTC()
+	// (c) ResetsAt 来自 end_time（Unix 毫秒 1711929600000 → 2024-04-01 00:00:00 UTC）
+	wantReset := time.UnixMilli(1711929600000).UTC()
 	if !d.ResetsAt.Equal(wantReset) {
 		t.Errorf("dim.ResetsAt = %v, want %v", d.ResetsAt, wantReset)
 	}
@@ -124,17 +124,12 @@ func TestFetchUsageGolden(t *testing.T) {
 	if u.BaseURL != srv.URL {
 		t.Errorf("BaseURL = %q, want %s", u.BaseURL, srv.URL)
 	}
-	wantWinStart := time.Unix(1711843200, 0).UTC()
-	wantWinEnd := time.Unix(1711929600, 0).UTC()
-	if !u.WindowStart.Equal(wantWinStart) || !u.WindowEnd.Equal(wantWinEnd) {
-		t.Errorf("Window = %s→%s, want %s→%s", u.WindowStart, u.WindowEnd, wantWinStart, wantWinEnd)
-	}
 }
 
 // TestFetchUsageSnakeCaseField 验证 usage_percent snake_case 变体同样被解析
 // （真实 API 存在两种字段名，实现必须兼容）。
 func TestFetchUsageSnakeCaseField(t *testing.T) {
-	payload := `{"usage_percent":25,"model_remains":[{"start_time":1711843200,"end_time":1711929600}]}`
+	payload := `{"usage_percent":25,"model_remains":[{"start_time":1711843200000,"end_time":1711929600000}]}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, payload)
 	}))

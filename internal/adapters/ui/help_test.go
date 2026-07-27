@@ -27,7 +27,7 @@ func TestRenderHelpBodyContainsAllGroups(t *testing.T) {
 			t.Errorf("help body missing group header %q", g.name)
 		}
 	}
-	for _, key := range []string{"a", "e", "d", "r", "R", "?", "q", "/"} {
+	for _, key := range []string{"a", "e", "d", "p", "r", "R", "?", "q", "/"} {
 		if !strings.Contains(body, key) {
 			t.Errorf("help body missing key %q", key)
 		}
