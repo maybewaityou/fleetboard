@@ -128,7 +128,7 @@ func (d *AccountDetails) RenderEmpty(msg string) {
 // instead of a number, so a partially-failed account still reads cleanly.
 func renderDimension(dim domain.UsageDimension) string {
 	pct := dim.PercentUsed
-	bar := renderBar(pct)
+	bar := renderBar(pct, barWidth)
 
 	pctStr := "N/A"
 	if pct >= 0 {
@@ -161,21 +161,22 @@ func renderDimension(dim domain.UsageDimension) string {
 	)
 }
 
-// renderBar draws a barWidth-cell bar filled proportionally to pct, colored by
-// StatusColor. pct<0 (N/A) yields an all-gray hollow bar.
-func renderBar(pct float64) string {
+// renderBar draws a width-cell bar filled proportionally to pct, colored by
+// StatusColor. pct<0 (N/A) yields an all-gray hollow bar. Width is parameterized
+// so the list's miniBar (8) and details' bar (20) share one implementation.
+func renderBar(pct float64, width int) string {
 	if pct < 0 {
-		return "[" + colorGray + "]" + strings.Repeat("░", barWidth) + "[-]"
+		return "[" + colorGray + "]" + strings.Repeat("░", width) + "[-]"
 	}
-	n := int(pct / 100.0 * float64(barWidth))
-	if n > barWidth {
-		n = barWidth
+	n := int(pct / 100.0 * float64(width))
+	if n > width {
+		n = width
 	}
 	if n < 0 {
 		n = 0
 	}
 	col := StatusColor(pct)
-	return "[" + col + "]" + strings.Repeat("█", n) + strings.Repeat("░", barWidth-n) + "[-]"
+	return "[" + col + "]" + strings.Repeat("█", n) + strings.Repeat("░", width-n) + "[-]"
 }
 
 // compactInt renders an int64 with k/M suffixes for readability and appends the

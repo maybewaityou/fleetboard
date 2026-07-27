@@ -17,6 +17,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -133,33 +134,68 @@ func primaryPercent(u domain.VendorUsage) float64 {
 
 // formatAccountLine renders one aligned list row:
 //
-//	<⚠?> <label pad22>  [black:accent] <vendor pad7> [-:-:-]  <pct pad5>  <dot>  <HH:MM>
+//	<icon> <label pad22>    <vendor chip>    <miniBar8> <pct> <dot>    <lastRefreshed>
 //
-// Columns are fixed-width so vendor / percent / dot / fetched-time align across
-// rows regardless of label length. label uses padDisplay (TaggedStringWidth) so
-// CJK labels align by display width, not byte/rune count. The vendor chip uses
-// lazytmux's tagChip style (black on unified accent). err rows prefix a red ⚠.
+// icon = vendor 首字母(品牌色), 与左边框留 1 空格(参考 lazytmux marker 固定列)。
+// vendor 与 miniBar 之间留宽间距；miniBar+pct+dot 紧凑；dot 与 fetched 之间留宽间距。
+// fetched 是相对时间(humanizeAgo)。label 用 padDisplay(CJK 显示宽度对齐)。
 func formatAccountLine(u domain.VendorUsage) string {
 	pctStr, dot := "N/A", "○"
 	if u.Primary != nil {
 		pctStr = fmt.Sprintf("%d%%", int(u.Primary.PercentUsed))
 		dot = "●"
 	}
-	dotCol := StatusColor(primaryPercent(u))
+	pct := primaryPercent(u)
+	dotCol := StatusColor(pct)
+
+	// icon: vendor 首字母大写, 品牌色（VendorTag 的 fg）。
+	_, iconFg := VendorTag(u.Vendor)
+	icon := "?"
+	if u.Vendor != "" {
+		icon = strings.ToUpper(u.Vendor[:1])
+	}
 
 	label := u.Label
 	if u.Err != nil {
 		label = "[" + colorRed + "]⚠[-] " + u.Label
 	}
 
-	fetched := "—"
-	if !u.FetchedAt.IsZero() {
-		fetched = u.FetchedAt.Format("15:04")
-	}
+	fetched := humanizeAgo(u.FetchedAt)
 
-	// 列宽固定：label(pad22, CJK 按显示宽度) | vendor chip(%-7s 在 tag 内) | pct(%-5s) | dot | fetched
-	return fmt.Sprintf("%s  [black:%s] %-7s [-:-:-]  %-5s  [%s]%s[-]  [%s]%s[-]",
-		padDisplay(label, 22), colorAccent, u.Vendor, pctStr, dotCol, dot, colorSecondary, fetched)
+	// 列布局：icon(1+留白) | label pad22 | 4sp | vendor chip | 4sp | miniBar8 sp pct(pad4) dot | 4sp | fetched
+	return fmt.Sprintf(" [%s]%s[-] %s    [black:%s] %-7s [-:-:-]    %s [%s]%-4s[-][%s]%s[-]    [%s]%s[-]",
+		iconFg, icon,
+		padDisplay(label, 22),
+		colorAccent, u.Vendor,
+		renderBar(pct, 8),
+		colorPrimary, pctStr,
+		dotCol, dot,
+		colorSecondary, fetched)
+}
+
+// humanizeAgo 把时间渲染为相对时长（"5m ago"/"3h ago"/"2d ago"），零值→"—"。
+// 移植自 lazytmux humanizeDuration。
+func humanizeAgo(t time.Time) string {
+	if t.IsZero() {
+		return "—"
+	}
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	case d < 60*24*time.Hour:
+		return fmt.Sprintf("%dd ago", int(d.Hours())/24)
+	default:
+		months := int(d.Hours()) / (24 * 30)
+		if months < 1 {
+			months = 1
+		}
+		return fmt.Sprintf("%dmo ago", months)
+	}
 }
 
 // padDisplay right-pads s to a fixed DISPLAY width (CJK chars count as 2),

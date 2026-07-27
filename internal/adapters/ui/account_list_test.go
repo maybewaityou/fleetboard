@@ -140,16 +140,29 @@ func TestFormatAccountLine_UnknownVendor(t *testing.T) {
 	}
 }
 
-// TestFormatAccountLine_FetchedTime 验证行尾显示最近刷新时间（HH:MM）。
+// TestFormatAccountLine_FetchedTime 验证行尾显示最近刷新相对时间（Xm ago）。
 func TestFormatAccountLine_FetchedTime(t *testing.T) {
 	u := domain.VendorUsage{
 		AccountID: "a", Vendor: "glm", Label: "l",
 		Primary:   &domain.UsageDimension{PercentUsed: 50},
-		FetchedAt: time.Date(2026, 7, 27, 12, 3, 0, 0, time.UTC),
+		FetchedAt: time.Now().Add(-5 * time.Minute),
 	}
 	got := formatAccountLine(u)
-	if !strings.Contains(got, "12:03") {
-		t.Errorf("fetched time 12:03 missing in: %q", got)
+	if !strings.Contains(got, "m ago") {
+		t.Errorf("fetched relative time missing in: %q", got)
+	}
+}
+
+// TestHumanizeAgo 验证相对时间格式（零值→—；过去→含 ago 单位）。
+func TestHumanizeAgo(t *testing.T) {
+	if got := humanizeAgo(time.Time{}); got != "—" {
+		t.Errorf("zero → %q, want —", got)
+	}
+	if got := humanizeAgo(time.Now().Add(-2 * time.Hour)); !strings.Contains(got, "h ago") {
+		t.Errorf("2h ago → %q, want contain 'h ago'", got)
+	}
+	if got := humanizeAgo(time.Now().Add(-3 * 24 * time.Hour)); !strings.Contains(got, "d ago") {
+		t.Errorf("3d ago → %q, want contain 'd ago'", got)
 	}
 }
 
