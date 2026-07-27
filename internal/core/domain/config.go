@@ -29,5 +29,19 @@ type RefreshConfig struct {
 
 // UIConfig 控制 TUI 表现层。
 type UIConfig struct {
-	Theme string `yaml:"theme"` // tokyo-night
+	Theme  string       `yaml:"theme"`  // tokyo-night
+	Colors ColorsConfig `yaml:"colors"` // 颜色阈值；零值→代码默认
+}
+
+// ColorsConfig 持有配额型与余额型两套颜色阈值。
+type ColorsConfig struct {
+	Quota   ThresholdColors `yaml:"quota"`   // 配额型（百分比，升序阈值）
+	Balance ThresholdColors `yaml:"balance"` // 余额型（数值，降序阈值；支持负值）
+}
+
+// ThresholdColors：thresholds 为边界数组，colors 比 thresholds 多 1 个（末尾兜底）。
+// 配额型 thresholds 升序、余额型降序；方向由选色函数（pickByQuota/pickByBalance）决定。
+type ThresholdColors struct {
+	Thresholds []float64 `yaml:"thresholds"`
+	Colors     []string  `yaml:"colors"` // 预设名或 #RRGGBB
 }

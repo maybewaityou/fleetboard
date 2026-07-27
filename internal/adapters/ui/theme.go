@@ -54,28 +54,22 @@ func ProviderTag(provider string) (bg, fg string) {
 	return unknownProviderBG, unknownProviderFG
 }
 
-// StatusColor maps a usage percentage to the status indicator color (spec §9.2):
-//
-//	percent < 0         → gray   (N/A or fetch failed)
-//	percent < 70        → green
-//	70 <= percent <= 90 → yellow
-//	percent > 90        → red
-//
-// Boundaries follow spec §9.2/§9.3 verbatim (the task-6 brief's ">=90 red"
-// wording was a typo — 90 is the last yellow value, 91 is the first red).
-// Check <0 first: a negative percent is also <70, so the negative branch must
-// win to surface "no data" distinctly.
+// StatusColor 把用量百分比映射到状态色。读活动配色（默认 <70 绿 / [70,90] 黄 /
+// >90 红，可经 config.yaml ui.colors.quota 覆盖）。pct<0 固定灰（N/A 或拉取失败），
+// 先于阈值判断——负值也 <70，故负分支必须先命中以区分"无数据"。
 func StatusColor(percent float64) string {
-	switch {
-	case percent < 0:
+	if percent < 0 {
 		return colorGray
-	case percent < 70:
-		return colorGreen
-	case percent <= 90: // [70,90] yellow (含 90)
-		return colorYellow
-	default: // >90 red
-		return colorRed
 	}
+	return pickByQuota(activeColors.Load().quota, percent)
+}
+
+// BalanceColor 把余额数值映射到状态色（余额越低越危险）。读活动配色（默认 >=10 绿 /
+// >=1 黄 / <1 红，可经 config.yaml ui.colors.balance 覆盖；支持负余额）。
+// currency 暂未参与选色，保留参数供未来按币别分档。
+func BalanceColor(balance float64, currency string) string {
+	_ = currency
+	return pickByBalance(activeColors.Load().balance, balance)
 }
 
 // initializeTheme applies the Tokyo Night palette to tview's global Styles and
