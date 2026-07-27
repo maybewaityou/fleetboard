@@ -178,7 +178,6 @@ func (p *Provider) getJSON(ctx context.Context, url, bearer, newUser string, out
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
 	req.Header.Set("New-Api-User", newUser)
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := p.hc.Do(req)
 	if err != nil {

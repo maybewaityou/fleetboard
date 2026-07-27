@@ -120,7 +120,7 @@ ui:
 
 **Getting `access_token` and `user_id`**:
 - `access_token`: Go to new-api backend → Settings → System Access Token → Generate.
-- `user_id`: In browser, open F12 → Network → Any `/api/*` request's `New-Api-User` header, or `localStorage.getItem('user.id')`.
+- `user_id`: In browser, open F12 → Network → Any `/api/*` request's `New-Api-User` header, or `user.id` in Local Storage.
 
 > **Note:** new-api's OpenAI-compatible billing endpoints (`/v1/dashboard/billing/*`) return fake placeholder data. fleetboard uses the native `/api/*` layer to fetch real balance and recent 7d/30d usage.
 

@@ -55,8 +55,12 @@ func TestRecentUsageNilDefault(t *testing.T) {
 	}
 }
 
-// TestAccountNewFields 验证 new-api 凭证字段可构造。
+// TestAccountNewFields 验证 new-api 凭证字段可构造且默认零值（非 newapi 账号无感）。
 func TestAccountNewFields(t *testing.T) {
+	var zero Account
+	if zero.AccessTokenEnv != "" || zero.UserID != "" {
+		t.Fatalf("new fields should default to empty, got %+v", zero)
+	}
 	acc := Account{
 		Provider:       "newapi",
 		AccessTokenEnv: "NEWAPI_AT",

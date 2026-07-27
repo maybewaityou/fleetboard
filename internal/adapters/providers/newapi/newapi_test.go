@@ -123,6 +123,9 @@ func TestFetchUsage_QPUFallback(t *testing.T) {
 func TestFetchUsage_StatDegraded(t *testing.T) {
 	t.Setenv("NEWAPI_AT", "AT")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("New-Api-User") != "16002" {
+			t.Errorf("New-Api-User = %q, want 16002", r.Header.Get("New-Api-User"))
+		}
 		switch r.URL.Path {
 		case "/api/user/self":
 			fmt.Fprint(w, `{"data":{"quota":121992688,"used_quota":69281250}}`)
