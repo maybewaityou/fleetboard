@@ -69,6 +69,8 @@ make run
 
 创建 `~/.fleetboard/config.yaml`：
 
+> **破坏性变更 (v0.2.0)：** new-api 账号须将 `token_env` 迁移为 `access_token_env` + `user_id`（见下）。旧的 OpenAI billing 端点返回的是占位假数据，fleetboard 现改读 new-api 原生层。
+
 ```yaml
 accounts:
   - id: glm-main

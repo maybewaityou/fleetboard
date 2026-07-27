@@ -52,7 +52,7 @@ func nativeServer(t *testing.T, userSelfStatus, statusStatus int) *httptest.Serv
 		case "/api/status":
 			w.WriteHeader(statusStatus)
 			if statusStatus == 200 {
-				fmt.Fprint(w, `{"data":{"quota_per_unit":500000}}`)
+				fmt.Fprint(w, `{"data":{"quota_per_unit":250000}}`)
 			}
 		case "/api/log/self/stat":
 			start, _ := strconv.ParseInt(r.URL.Query().Get("start_timestamp"), 10, 64)
@@ -75,8 +75,9 @@ func validAcc(base string) domain.Account {
 	}
 }
 
-// TestFetchUsage_NativeGolden 全流程：余额 = 121992688/500000 = 243.99；
-// Recent.Window7d = 25600000/500000 = 51.2，Window30d = 69281250/500000 = 138.56。
+// TestFetchUsage_NativeGolden 全流程：余额 = 121992688/250000 = 487.970752；
+// Recent.Window7d = 25600000/250000 = 102.4，Window30d = 69281250/250000 = 277.125。
+// 与 QPUFallback（status 500 → 默认 500000 → 243.985376）数值不同，确保成功路径真用 fetched qpu。
 func TestFetchUsage_NativeGolden(t *testing.T) {
 	t.Setenv("NEWAPI_AT", "AT")
 	srv := nativeServer(t, 200, 200)
@@ -86,8 +87,8 @@ func TestFetchUsage_NativeGolden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	if len(u.Dimensions) != 1 || u.Dimensions[0].Balance != 243.985376 {
-		t.Errorf("Balance = %v, want 243.99 (121992688/500000)", u.Dimensions[0].Balance)
+	if len(u.Dimensions) != 1 || u.Dimensions[0].Balance != 487.970752 {
+		t.Errorf("Balance = %v, want 487.970752 (121992688/250000)", u.Dimensions[0].Balance)
 	}
 	if u.Dimensions[0].Currency != "USD" || u.Dimensions[0].PercentUsed != -1 {
 		t.Errorf("dim wrong: %+v", u.Dimensions[0])
@@ -95,7 +96,7 @@ func TestFetchUsage_NativeGolden(t *testing.T) {
 	if u.Recent == nil {
 		t.Fatal("Recent must not be nil when stat succeeds")
 	}
-	if u.Recent.Window7d != 51.2 || u.Recent.Window30d != 138.5625 {
+	if u.Recent.Window7d != 102.4 || u.Recent.Window30d != 277.125 {
 		t.Errorf("Recent windows wrong: %+v", u.Recent)
 	}
 	if u.Recent.RPM != 3 || u.Recent.TPM != 1200 || u.Recent.Currency != "USD" {

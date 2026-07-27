@@ -128,7 +128,7 @@ func (f *AccountForm) Prefill(acc domain.Account) {
 }
 
 // submit 校验并提交。必填项按 provider 分支：
-//   - newapi：AccessTokenEnv + UserID（TokenEnv 不再使用）
+//   - newapi：AccessTokenEnv + UserID（TokenEnv 不再校验）
 //   - 其他：TokenEnv（沿用旧规则）
 //
 // ID 不在此设置（新增时由 cmd/main 用 domain.GenerateAccountID 生成）。

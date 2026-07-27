@@ -130,7 +130,7 @@ func TestRenderDimensionBalance(t *testing.T) {
 	}
 }
 
-// TestRenderRecent 验证 Recent 区块渲染键值行；nil 时不渲染。
+// TestRenderRecent 验证 Recent 区块渲染键值行。
 func TestRenderRecent(t *testing.T) {
 	// 有 Recent
 	got := renderRecent(domain.RecentUsage{Window7d: 51.2, Window30d: 138.56, RPM: 3, TPM: 1200, Currency: "USD"})

@@ -70,6 +70,8 @@ make run
 
 Create `~/.fleetboard/config.yaml`:
 
+> **Breaking (v0.2.0):** new-api accounts must migrate `token_env` → `access_token_env` + `user_id` (see below). The old OpenAI billing endpoints returned placeholder data; fleetboard now reads new-api's native layer.
+
 ```yaml
 accounts:
   - id: glm-main
