@@ -14,13 +14,13 @@
 
 // Command fleetboard is the AI coding-plan usage dashboard TUI.
 //
-// This is the real Task-12 assembly: it wires the concrete adapters (yaml config
-// store, glm/minimax providers, services.Aggregator) into the tview TUI and
-// exposes two refresh keys — r re-fetches the selected account (FetchOne) and R
-// re-fetches every account (FetchAll). A background goroutine re-fetches all
-// accounts on the configured interval (Refresh.Interval, default 5m) and hands
-// the fresh dataset to TUI.Render, which marshals the repaint onto the tview
-// main loop so the write stays race-free.
+// This is the assembly: it wires the concrete adapters (yaml config store,
+// glm/minimax providers, services.Aggregator) into the tview TUI and exposes
+// manual refresh keys — r re-fetches the selected account (FetchOne) and R
+// re-fetches every account (FetchAll). (Background auto-refresh was removed by
+// request — refresh manually with r/R.) Refresh callbacks hand the fresh
+// dataset to TUI.Render, which marshals the repaint onto the tview main loop so
+// the write stays race-free.
 //
 // Tokens never enter main: each provider reads its own token from the env var
 // named by the account's TokenEnv field. Errors from FetchAll/FetchOne are
@@ -34,7 +34,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -53,11 +52,6 @@ var (
 	version   = "develop"
 	gitCommit = "unknown"
 )
-
-// defaultRefreshInterval is used when cfg.Refresh.Interval is empty or fails to
-// parse. 5m matches the spec default and is long enough that a parked terminal
-// does not hammer vendor rate limits.
-const defaultRefreshInterval = 5 * time.Minute
 
 func main() {
 	sugar, err := logger.New("FLEETBOARD")
@@ -81,11 +75,9 @@ func main() {
 	}
 }
 
-// run is the full Task-12 wiring: load config, build the registry/aggregator,
-// fetch initial usage, construct the TUI with both refresh callbacks, start the
-// background refresher, then block on the TUI main loop. Cleanup is via deferred
-// context cancel + refresher join, so on exit every spawned goroutine has
-// drained before the process tears down.
+// run wires the assembly: load config, build registry/aggregator, fetch initial
+// usage, construct the TUI with refresh + CRUD callbacks, then block on the TUI
+// main loop. ctx backs the r/R + CRUD callbacks and is cancelled on exit.
 func run(sugar *zap.SugaredLogger) error {
 	// Config path: ~/.fleetboard/config.yaml. A missing file is first-run; the
 	// yaml store returns an empty Config rather than erroring, so the UI shows
@@ -192,20 +184,10 @@ func run(sugar *zap.SugaredLogger) error {
 		OnLoadAccount:   onLoadAccount,
 	})
 
-	// Background refresher: tick on cfg.Refresh.Interval (default 5m) and
-	// re-fetch every account, handing the fresh dataset to Render. Render
-	// marshals onto the tview main loop, so calling it from here is race-safe.
-	// Skipped when there are no accounts — FetchAll-on-empty is harmless but the
-	// ticker would spin forever for no benefit; the empty-state UI is enough.
-	interval := parseRefreshInterval(cfg.Refresh.Interval, sugar)
-	if len(cfg.Accounts) == 0 {
-		sugar.Infow("no accounts configured; background refresh disabled "+
-			"(edit "+cfgPath+" and restart)", "path", cfgPath)
-		cancel() // nothing to refresh; release the context eagerly
-	} else {
-		stop := startBackgroundRefresher(ctx, cancel, t, refreshAll, interval, sugar)
-		defer stop()
-	}
+	// ctx backs the r/R + CRUD callbacks (FetchAll/FetchOne) for the lifetime of
+	// the TUI. Background auto-refresh was removed by request — refresh manually
+	// with r/R — so cancel only on exit.
+	defer cancel()
 
 	if err := t.Run(); err != nil {
 		return fmt.Errorf("tui run: %w", err)
@@ -281,59 +263,5 @@ func removeAccount(accs []domain.Account, id string) []domain.Account {
 	return out
 }
 
-// parseRefreshInterval parses cfg.Refresh.Interval with time.ParseDuration and
-// falls back to defaultRefreshInterval on empty/invalid/non-positive input,
-// logging the substitution so a typo in the YAML is discoverable.
-func parseRefreshInterval(s string, sugar *zap.SugaredLogger) time.Duration {
-	if s == "" {
-		return defaultRefreshInterval
-	}
-	d, err := time.ParseDuration(s)
-	if err != nil || d <= 0 {
-		sugar.Warnw("invalid refresh interval, using default",
-			"value", s, "default", defaultRefreshInterval.String(), "error", err)
-		return defaultRefreshInterval
-	}
-	return d
-}
-
-// startBackgroundRefresher launches a goroutine that calls refreshAll on every
-// ticker tick and hands the result to view.Render. The returned stop function
-// cancels the context (which unblocks the goroutine on its next select), stops
-// the ticker, and blocks until the goroutine has exited — so callers can defer
-// it to guarantee no goroutine outlives run(). It is safe to call stop after the
-// context has already been cancelled (e.g. by a signal path); it is idempotent.
-func startBackgroundRefresher(
-	ctx context.Context,
-	cancel context.CancelFunc,
-	view *ui.TUI,
-	refreshAll func() []domain.VendorUsage,
-	interval time.Duration,
-	sugar *zap.SugaredLogger,
-) (stop func()) {
-	ticker := time.NewTicker(interval)
-	done := make(chan struct{})
-
-	go func() {
-		defer close(done)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				usages := refreshAll()
-				view.Render(usages)
-				sugar.Debugw("background refresh tick", "accounts", len(usages))
-			}
-		}
-	}()
-
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			cancel()
-			ticker.Stop()
-			<-done
-		})
-	}
-}
+// (background auto-refresh + parseRefreshInterval + startBackgroundRefresher
+// removed by request — users refresh manually with r/R.)
