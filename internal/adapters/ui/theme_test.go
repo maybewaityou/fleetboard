@@ -37,6 +37,8 @@ func TestProviderTag_KnownProviders(t *testing.T) {
 		{"cursor", "#6366F1", "#FFFFFF"},
 		{"copilot", "#0969DA", "#FFFFFF"},
 		{"deepseek", "#2563EB", "#FFFFFF"},
+		{"sub2api", "#8B5CF6", "#FFFFFF"},
+		{"newapi", "#10B981", "#FFFFFF"},
 	}
 	for _, tc := range cases {
 		tc := tc

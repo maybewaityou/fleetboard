@@ -31,6 +31,8 @@ var providerColor = map[string][2]string{ // {bg, fg}
 	"cursor":    {"#6366F1", "#FFFFFF"},
 	"copilot":   {"#0969DA", "#FFFFFF"},
 	"deepseek":  {"#2563EB", "#FFFFFF"},
+	"sub2api":   {"#8B5CF6", "#FFFFFF"}, // 紫
+	"newapi":    {"#10B981", "#FFFFFF"}, // 翠绿
 }
 
 // Unknown-provider fallback colors: a neutral gray that keeps the tag readable
