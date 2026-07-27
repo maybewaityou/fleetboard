@@ -374,6 +374,19 @@ func (t *TUI) handleGlobalKeys(e *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyCtrlC:
 		t.app.Stop()
 		return nil
+	case tcell.KeyRight:
+		// List -> Details: the list's own capture does NOT swallow Right, so it
+		// bubbles up here (mirrors lazytmux).
+		if t.listHasFocus() {
+			t.focusDetails()
+			return nil
+		}
+	case tcell.KeyLeft:
+		// Details -> List.
+		if t.detailsHasFocus() {
+			t.focusList()
+			return nil
+		}
 	}
 	switch e.Rune() {
 	case '/':
@@ -476,19 +489,20 @@ func (t *TUI) doTogglePin() {
 	}
 }
 
-func (t *TUI) searchBarHasFocus() bool {
-	return t.app.GetFocus() == t.searchBar
-}
+func (t *TUI) searchBarHasFocus() bool { return t.searchBar.HasFocus() }
+func (t *TUI) listHasFocus() bool      { return t.accountList.HasFocus() }
+func (t *TUI) detailsHasFocus() bool   { return t.details.HasFocus() }
 
 func (t *TUI) cycleFocus() {
-	if t.app.GetFocus() == t.accountList {
-		t.app.SetFocus(t.details)
+	if t.listHasFocus() {
+		t.focusDetails()
 	} else {
-		t.app.SetFocus(t.accountList)
+		t.focusList()
 	}
 }
 
-func (t *TUI) focusList() { t.app.SetFocus(t.accountList) }
+func (t *TUI) focusList()    { t.app.SetFocus(t.accountList) }
+func (t *TUI) focusDetails() { t.app.SetFocus(t.details) }
 
 func (t *TUI) blurSearchBar() {
 	t.searchBar.SetText("")
