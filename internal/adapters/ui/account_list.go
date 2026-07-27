@@ -123,6 +123,11 @@ func (al *AccountList) OnReturnToSearch(fn func()) *AccountList {
 	return al
 }
 
+// SetSortTitle writes the active sort mode into the list border title.
+func (al *AccountList) SetSortTitle(mode string) {
+	al.List.SetTitle(" Accounts — Sort: " + mode + " ")
+}
+
 // displayDimension returns the dimension shown in the list: the one with the
 // soonest non-zero ResetsAt (the nearest reset window — "最近时间"), falling back
 // to Primary when no dimension carries a reset time (balance providers such as

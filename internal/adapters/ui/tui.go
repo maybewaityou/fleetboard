@@ -20,7 +20,6 @@ package ui
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -97,6 +96,8 @@ type TUI struct {
 	// selectedID is preserved across refreshes so the user's selection survives
 	// a re-render (mirrors lazytmux's SelectByName-after-UpdateSessions flow).
 	selectedID string
+	// sortMode is the active list sort, cycled by s/S.
+	sortMode SortMode
 
 	refreshSelected RefreshSelectedFunc
 	refreshAll      RefreshAllFunc
@@ -122,6 +123,7 @@ func NewTUI(cfg Config) *TUI {
 		logger:          cfg.Logger,
 		version:         cfg.Version,
 		commit:          cfg.Commit,
+		sortMode:        SortByNameAsc,
 		allCache:        cfg.InitialData,
 		refreshSelected: cfg.RefreshSelected,
 		refreshAll:      cfg.RefreshAll,
@@ -147,6 +149,7 @@ func (t *TUI) Run() error {
 	t.app.EnableMouse(true)
 	t.queueDraw = func(f func()) { t.app.QueueUpdateDraw(f) }
 	t.buildComponents().buildLayout().bindEvents().loadInitialData()
+	t.accountList.SetSortTitle(t.sortMode.String())
 
 	// clock ticker：每 clockTickInterval 重渲列表，让 "Last Refreshed: Xm ago" 相对
 	// 时间持续推进，而非停在首次渲染时的 "just now"。tick 走 queueDraw，与 Render 同一
@@ -337,10 +340,17 @@ func (t *TUI) visibleUsages() []domain.ProviderUsage {
 // 过滤后，置顶项始终钉在列表顶部。
 func (t *TUI) visibleSorted() []domain.ProviderUsage {
 	visible := t.visibleUsages()
-	sort.SliceStable(visible, func(i, j int) bool {
-		return visible[i].Pinned && !visible[j].Pinned
-	})
+	sortUsagesForUI(visible, t.sortMode)
 	return visible
+}
+
+// applySortAndRender updates the list border title to the active mode and
+// re-renders. Runs on the tview main loop (input handler), so it repaints
+// synchronously rather than via Render/QueueUpdateDraw (which would deadlock).
+func (t *TUI) applySortAndRender() {
+	t.accountList.SetSortTitle(t.sortMode.String())
+	t.applyCacheToViews()
+	t.setStatusTemporary("[" + colorCyan + "]Sort: " + t.sortMode.String() + "[-]")
 }
 
 func (t *TUI) currentSearchQuery() string {
@@ -394,8 +404,12 @@ func (t *TUI) handleGlobalKeys(e *tcell.EventKey) *tcell.EventKey {
 		t.doTogglePin()
 		return nil
 	case 's':
-		// sort not yet implemented; surface explicitly rather than swallowing.
-		t.setStatusTemporary("[" + colorYellow + "]Sort not wired yet[-]")
+		t.sortMode = t.sortMode.Next()
+		t.applySortAndRender()
+		return nil
+	case 'S':
+		t.sortMode = t.sortMode.Next().Next()
+		t.applySortAndRender()
 		return nil
 	}
 	return e
