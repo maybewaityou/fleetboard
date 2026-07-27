@@ -2,3 +2,6 @@ bin/
 coverage.out
 *.tar.gz
 .DS_Store
+
+# Personal release tooling (not part of the shipped project).
+scripts/
