@@ -21,11 +21,12 @@ import (
 	"github.com/maybewaityou/fleetboard/internal/core/domain"
 )
 
-// 字段在 form 中的下标（用于按位读取）。Vendor 是 DropDown，其余 InputField。
+// 字段在 form 中的下标（用于按位读取）。ID 不在 form 中：
+// 新增时由 cmd/main 用 domain.GenerateAccountID() 自动生成；编辑时由
+// onEditAccount 保留原 ID（见 main.go）。Label 是第一个输入字段。
 const (
-	afFieldID = iota
+	afFieldLabel = iota
 	afFieldVendor
-	afFieldLabel
 	afFieldBaseURL
 	afFieldTokenEnv
 )
@@ -33,27 +34,44 @@ const (
 // vendorOptions 是 Vendor 下拉的可选项（与 cmd/main 注册的 adapter 对应）。
 var vendorOptions = []string{"glm", "minimax", "kimi", "deepseek"}
 
+// 各字段 placeholder。
+const (
+	phLabel    = "e.g. 智谱编码-主力"
+	phVendor   = "选择厂商"
+	phBaseURL  = "留空使用默认"
+	phTokenEnv = "e.g. GLM_API_KEY"
+)
+
 // AccountForm 是新增/编辑账号的模态表单（仿 lazytmux session_multifield_form）。
+// SetBorderPadding(0,0,1,1) 是关键坑：tview.Form 默认四周 padding 1，多字段时会偷
+// 两行导致聚焦末字段时首字段滚出视图。
 type AccountForm struct {
 	form     *tview.Form
 	onSubmit func(domain.Account)
 	onCancel func()
 }
 
-// NewAccountForm 构造表单。SetBorderPadding(0,0,1,1) 是关键坑：tview.Form 默认四周
-// padding 1，多字段时会偷两行导致聚焦末字段时首字段滚出视图。
+// NewAccountForm 构造表单。ID 字段不在表单中；Vendor 下拉不预选（强制用户选）。
 func NewAccountForm() *AccountForm {
 	f := &AccountForm{form: tview.NewForm()}
 	f.form.SetBorder(true).
 		SetTitle(" Account ").
 		SetTitleColor(tcell.GetColor(colorTitle)).
 		SetBorderColor(tcell.GetColor(colorBorder))
-	f.form.AddInputField("ID", "", 0, nil, nil)
-	f.form.AddDropDown("Vendor", vendorOptions, 0, nil)
 	f.form.AddInputField("Label", "", 0, nil, nil)
+	f.form.AddDropDown("Vendor", vendorOptions, 0, nil)
 	f.form.AddInputField("BaseURL", "", 0, nil, nil)
 	f.form.AddInputField("TokenEnv", "", 0, nil, nil)
 	f.form.SetBorderPadding(0, 0, 1, 1)
+
+	// placeholder：每个字段给提示；Vendor 下拉清空预选（idx=-1 显示 noSelection 文本）。
+	// DropDown 无 SetPlaceholder，用 SetTextOptions 的 noSelection 参数作未选时的提示。
+	f.input(afFieldLabel).SetPlaceholder(phLabel)
+	f.vendorDropDown().SetTextOptions("", "", "", "", phVendor)
+	f.vendorDropDown().SetCurrentOption(-1)
+	f.input(afFieldBaseURL).SetPlaceholder(phBaseURL)
+	f.input(afFieldTokenEnv).SetPlaceholder(phTokenEnv)
+
 	f.form.SetInputCapture(func(e *tcell.EventKey) *tcell.EventKey {
 		switch e.Key() {
 		case tcell.KeyESC:
@@ -63,7 +81,7 @@ func NewAccountForm() *AccountForm {
 			return nil
 		case tcell.KeyEnter:
 			// 焦点在 Vendor DropDown 时放行 Enter，让 tview 内部确认下拉选项
-			// （否则 Enter 被全局拦截成 submit，下拉无法选定 —— #4 bug 根因）。
+			// （否则 Enter 被全局拦截成 submit，下拉无法选定）。
 			// GetFocusedItemIndex 返回 (formItem, button)，只看 formItem。
 			item, _ := f.form.GetFocusedItemIndex()
 			if item == afFieldVendor {
@@ -84,9 +102,8 @@ func (f *AccountForm) OnCancel(fn func()) *AccountForm               { f.onCance
 // Form 返回内部 *tview.Form，供调用方 SetFocus。
 func (f *AccountForm) Form() *tview.Form { return f.form }
 
-// Prefill 用现有账号预填（编辑场景）。
+// Prefill 用现有账号预填（编辑场景）。不回填 ID（ID 不在表单中）。
 func (f *AccountForm) Prefill(acc domain.Account) {
-	f.input(afFieldID).SetText(acc.ID)
 	for i, v := range vendorOptions {
 		if v == acc.Vendor {
 			f.vendorDropDown().SetCurrentOption(i)
@@ -97,18 +114,18 @@ func (f *AccountForm) Prefill(acc domain.Account) {
 	f.input(afFieldTokenEnv).SetText(acc.TokenEnv)
 }
 
-// submit 校验并提交。ID/Vendor/TokenEnv 必填；校验失败保持表单打开（不调 onSubmit）。
+// submit 校验并提交。Label/Vendor/TokenEnv 必填；ID 不在此设置
+// （新增时由 cmd/main 用 domain.GenerateAccountID 生成）。
 func (f *AccountForm) submit() {
-	id := f.text(afFieldID)
+	label := f.text(afFieldLabel)
 	_, vendor := f.vendorDropDown().GetCurrentOption()
-	if id == "" || vendor == "" || f.text(afFieldTokenEnv) == "" {
+	if label == "" || vendor == "" || f.text(afFieldTokenEnv) == "" {
 		return
 	}
 	if f.onSubmit != nil {
 		f.onSubmit(domain.Account{
-			ID:       id,
 			Vendor:   vendor,
-			Label:    f.text(afFieldLabel),
+			Label:    label,
 			BaseURL:  f.text(afFieldBaseURL),
 			TokenEnv: f.text(afFieldTokenEnv),
 		})

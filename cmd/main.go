@@ -143,6 +143,7 @@ func run(sugar *zap.SugaredLogger) error {
 	// CRUD 回调（a/e/d）：mutate cfg.Accounts → store.Save → refreshAll。
 	// cfg 是闭包按引用捕获的局部变量，append/remove/edit 后 refreshAll 下次读到新 Accounts。
 	onSaveAccount := func(acc domain.Account) []domain.VendorUsage {
+		acc.ID = domain.GenerateAccountID() // ID 自动生成，不由用户/表单提供
 		cfg.Accounts = append(cfg.Accounts, acc)
 		if err := store.Save(cfg); err != nil {
 			sugar.Warnw("save config (add) failed", "error", err)
