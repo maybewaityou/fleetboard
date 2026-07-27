@@ -57,6 +57,11 @@ type UsageDimension struct {
 	ResetsAt    time.Time
 	Unit        string
 	Source      string
+
+	// 余额型 vendor 专用（Kimi/DeepSeek）：Balance 是当前余额（元/美元），
+	// Currency 为 "CNY"/"USD"。配额型两者均零值。判断余额型用 Currency != ""。
+	Balance  float64
+	Currency string
 }
 
 // SelectPrimary 把 PercentUsed 最大的有效维度设为 Primary（最值得警惕的一档）。
