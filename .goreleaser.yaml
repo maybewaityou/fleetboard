@@ -1,0 +1,43 @@
+version: 2
+
+project_name: fleetboard
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.gitCommit={{.ShortCommit}}
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: github
+
+# Auto-generate the Homebrew formula and push it to the personal tap repo.
+# Triggered by `goreleaser release` (see .github/workflows/release.yml).
+brews:
+  - name: fleetboard
+    repository:
+      owner: maybewaityou
+      name: homebrew-tap
+      # A cross-repo PAT is required: the default GITHUB_TOKEN cannot write to
+      # another repository. Set HOMEBREW_TAP_GITHUB_TOKEN in CI.
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/maybewaityou/fleetboard
+    description: "Terminal dashboard for AI coding-plan usage & balance across providers."
+    license: Apache-2.0
+    directory: Formula
+    test: |
+      system "#{bin}/fleetboard", "--help"
