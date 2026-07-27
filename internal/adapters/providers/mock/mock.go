@@ -27,8 +27,8 @@ import (
 // 字段直接暴露以便测试断言/调整。
 type Provider struct {
 	ProviderName string
-	Dims       []domain.UsageDimension
-	Err        error
+	Dims         []domain.UsageDimension
+	Err          error
 	// FetchCount 记录 FetchUsage 被调用的次数，便于上层断言（可选）。
 	FetchCount int
 }
@@ -40,8 +40,8 @@ type Provider struct {
 func New(provider string, dims []domain.UsageDimension, err error) *Provider {
 	return &Provider{
 		ProviderName: provider,
-		Dims:       dims,
-		Err:        err,
+		Dims:         dims,
+		Err:          err,
 	}
 }
 
@@ -54,7 +54,7 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 	p.FetchCount++
 	u := domain.ProviderUsage{
 		AccountID:  acc.ID,
-		Provider:     acc.Provider,
+		Provider:   acc.Provider,
 		Label:      acc.Label,
 		Dimensions: p.Dims,
 		FetchedAt:  time.Now(),

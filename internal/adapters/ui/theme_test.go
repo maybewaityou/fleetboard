@@ -26,7 +26,7 @@ func TestProviderTag_KnownProviders(t *testing.T) {
 	// Every entry in providerColor must match spec §9.2 verbatim, so adding a
 	// new provider without updating this table fails loudly.
 	cases := []struct {
-		provider         string
+		provider       string
 		wantBG, wantFG string
 	}{
 		{"glm", "#7C3AED", "#FFFFFF"},

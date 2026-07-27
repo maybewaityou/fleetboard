@@ -85,8 +85,8 @@ func TestFetchUsageGolden(t *testing.T) {
 	if u.Primary.PercentUsed != 53 {
 		t.Fatalf("Primary.PercentUsed = %v, want 53", u.Primary.PercentUsed)
 	}
-	if u.Primary.Name != "每周额度" {
-		t.Errorf("Primary.Name = %q, want 每周额度", u.Primary.Name)
+	if u.Primary.Name != "Weekly Quota" {
+		t.Errorf("Primary.Name = %q, want Weekly Quota", u.Primary.Name)
 	}
 
 	// (d) Primary.ResetsAt 正确解析为 2026-04-08T00:00:00Z
@@ -95,28 +95,28 @@ func TestFetchUsageGolden(t *testing.T) {
 		t.Fatalf("Primary.ResetsAt = %v, want %v", u.Primary.ResetsAt, wantReset)
 	}
 
-	// 维度名映射：TOKENS_LIMIT 按 nextResetTime 升序 → 5小时额度 / 每周额度
-	if d, ok := findDim(u.Dimensions, "5小时额度"); !ok || d.PercentUsed != 44 {
-		t.Errorf("missing 5小时额度/44 dim; dims=%+v", u.Dimensions)
+	// 维度名映射：TOKENS_LIMIT 按 nextResetTime 升序 → 5h Quota / Weekly Quota
+	if d, ok := findDim(u.Dimensions, "5h Quota"); !ok || d.PercentUsed != 44 {
+		t.Errorf("missing 5h Quota/44 dim; dims=%+v", u.Dimensions)
 	}
-	if d, ok := findDim(u.Dimensions, "每周额度"); !ok || d.PercentUsed != 53 {
-		t.Errorf("missing 每周额度/53 dim; dims=%+v", u.Dimensions)
+	if d, ok := findDim(u.Dimensions, "Weekly Quota"); !ok || d.PercentUsed != 53 {
+		t.Errorf("missing Weekly Quota/53 dim; dims=%+v", u.Dimensions)
 	}
 
-	// TIME_LIMIT 字段映射：Used=currentValue, Limit=usage, Remaining=remaining, Unit="次"
-	mcp, ok := findDim(u.Dimensions, "MCP每月")
+	// TIME_LIMIT 字段映射：Used=currentValue, Limit=usage, Remaining=remaining, Unit="uses"
+	mcp, ok := findDim(u.Dimensions, "MCP Monthly")
 	if !ok {
-		t.Fatalf("missing MCP每月 dim; dims=%+v", u.Dimensions)
+		t.Fatalf("missing MCP Monthly dim; dims=%+v", u.Dimensions)
 	}
 	if mcp.Used != 72 || mcp.Limit != 1000 || mcp.Remaining != 928 {
-		t.Errorf("MCP每月 fields: Used=%d Limit=%d Remaining=%d, want 72/1000/928", mcp.Used, mcp.Limit, mcp.Remaining)
+		t.Errorf("MCP Monthly fields: Used=%d Limit=%d Remaining=%d, want 72/1000/928", mcp.Used, mcp.Limit, mcp.Remaining)
 	}
-	if mcp.Unit != "次" {
-		t.Errorf("MCP每月.Unit = %q, want 次", mcp.Unit)
+	if mcp.Unit != "uses" {
+		t.Errorf("MCP Monthly.Unit = %q, want 次", mcp.Unit)
 	}
 	wantMCPReset := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
 	if !mcp.ResetsAt.Equal(wantMCPReset) {
-		t.Errorf("MCP每月.ResetsAt = %v, want %v", mcp.ResetsAt, wantMCPReset)
+		t.Errorf("MCP Monthly.ResetsAt = %v, want %v", mcp.ResetsAt, wantMCPReset)
 	}
 
 	// Source 与 FetchedAt
@@ -169,16 +169,16 @@ func TestFetchUsageUnsortedTokens(t *testing.T) {
 	if len(u.Dimensions) != 2 {
 		t.Fatalf("dims = %d, want 2", len(u.Dimensions))
 	}
-	// 升序后 dims[0]=5小时额度(44%), dims[1]=每周额度(53%)
-	if u.Dimensions[0].Name != "5小时额度" || u.Dimensions[0].PercentUsed != 44 {
-		t.Errorf("dims[0] = %+v, want 5小时额度/44", u.Dimensions[0])
+	// 升序后 dims[0]=5h Quota(44%), dims[1]=Weekly Quota(53%)
+	if u.Dimensions[0].Name != "5h Quota" || u.Dimensions[0].PercentUsed != 44 {
+		t.Errorf("dims[0] = %+v, want 5h Quota/44", u.Dimensions[0])
 	}
-	if u.Dimensions[1].Name != "每周额度" || u.Dimensions[1].PercentUsed != 53 {
-		t.Errorf("dims[1] = %+v, want 每周额度/53", u.Dimensions[1])
+	if u.Dimensions[1].Name != "Weekly Quota" || u.Dimensions[1].PercentUsed != 53 {
+		t.Errorf("dims[1] = %+v, want Weekly Quota/53", u.Dimensions[1])
 	}
 	// Primary 仍是 53 那档（按 PercentUsed 选，与排序无关）
-	if u.Primary == nil || u.Primary.Name != "每周额度" {
-		t.Errorf("Primary = %+v, want 每周额度", u.Primary)
+	if u.Primary == nil || u.Primary.Name != "Weekly Quota" {
+		t.Errorf("Primary = %+v, want Weekly Quota", u.Primary)
 	}
 }
 

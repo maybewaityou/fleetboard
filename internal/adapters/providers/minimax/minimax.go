@@ -106,7 +106,7 @@ type modelRemain struct {
 func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.ProviderUsage, error) {
 	u := domain.ProviderUsage{
 		AccountID: acc.ID,
-		Provider:    "minimax",
+		Provider:  "minimax",
 		Label:     acc.Label,
 		FetchedAt: time.Now(),
 	}

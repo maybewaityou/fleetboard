@@ -43,7 +43,7 @@ const (
 	httpTimeout    = 10 * time.Second
 
 	sourceTag     = "api-balanced"
-	nameAvailable = "可用余额"
+	nameAvailable = "Available balance"
 
 	codeOK      = 0
 	currencyCNY = "CNY"
@@ -91,7 +91,7 @@ func currencyFor(base string) string {
 func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.ProviderUsage, error) {
 	u := domain.ProviderUsage{
 		AccountID: acc.ID,
-		Provider:    "kimi",
+		Provider:  "kimi",
 		Label:     acc.Label,
 		FetchedAt: time.Now(),
 	}

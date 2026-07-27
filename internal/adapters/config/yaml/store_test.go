@@ -69,7 +69,7 @@ func TestSaveRollsBackups(t *testing.T) {
 		cfg := domain.Config{
 			Accounts: []domain.Account{{
 				ID:       fmt.Sprintf("a%d", i),
-				Provider:   "glm",
+				Provider: "glm",
 				TokenEnv: "GLM_API_KEY",
 			}},
 		}

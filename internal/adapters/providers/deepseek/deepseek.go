@@ -42,7 +42,7 @@ const (
 	httpTimeout    = 10 * time.Second
 
 	sourceTag     = "api-balanced"
-	nameAvailable = "可用余额"
+	nameAvailable = "Available balance"
 )
 
 var _ ports.UsageProvider = (*Provider)(nil)
@@ -79,7 +79,7 @@ type balanceInfo struct {
 func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.ProviderUsage, error) {
 	u := domain.ProviderUsage{
 		AccountID: acc.ID,
-		Provider:    "deepseek",
+		Provider:  "deepseek",
 		Label:     acc.Label,
 		FetchedAt: time.Now(),
 	}

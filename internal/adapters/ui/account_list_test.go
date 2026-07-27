@@ -28,7 +28,7 @@ import (
 func TestFormatAccountLine_WithPrimary(t *testing.T) {
 	u := domain.ProviderUsage{
 		AccountID: "a1",
-		Provider:    "glm",
+		Provider:  "glm",
 		Label:     "prod-glm",
 		Primary: &domain.UsageDimension{
 			Name:        "GLM-4.5",
@@ -78,7 +78,7 @@ func TestFormatAccountLine_WithPrimary(t *testing.T) {
 func TestFormatAccountLine_NoPrimary(t *testing.T) {
 	u := domain.ProviderUsage{
 		AccountID: "a2",
-		Provider:    "kimi",
+		Provider:  "kimi",
 		Label:     "dev-kimi",
 		Primary:   nil, // no usable dimension
 	}
@@ -103,7 +103,7 @@ func TestFormatAccountLine_NoPrimary(t *testing.T) {
 func TestFormatAccountLine_ErrMarker(t *testing.T) {
 	u := domain.ProviderUsage{
 		AccountID: "a3",
-		Provider:    "openai",
+		Provider:  "openai",
 		Label:     "broken",
 		Primary: &domain.UsageDimension{
 			Name:        "gpt-4",
@@ -129,7 +129,7 @@ func TestFormatAccountLine_ErrMarker(t *testing.T) {
 func TestFormatAccountLine_UnknownProvider(t *testing.T) {
 	u := domain.ProviderUsage{
 		AccountID: "a4",
-		Provider:    "weird-provider",
+		Provider:  "weird-provider",
 		Label:     "x",
 		Primary:   &domain.UsageDimension{PercentUsed: 10},
 	}
@@ -302,7 +302,7 @@ func TestFormatMoneyShort(t *testing.T) {
 // TestFormatAccountLineBalance 验证余额型行渲染：含余额短格式、绿点（余额>0）、
 // 灰色 miniBar（renderBar(-1,4) 自然得灰条）。
 func TestFormatAccountLineBalance(t *testing.T) {
-	balDim := domain.UsageDimension{Name: "可用余额", Balance: 49.58894, Currency: "CNY", PercentUsed: -1}
+	balDim := domain.UsageDimension{Name: "Available balance", Balance: 49.58894, Currency: "CNY", PercentUsed: -1}
 	u := domain.ProviderUsage{AccountID: "k", Provider: "kimi", Label: "Kimi-主力", Primary: &balDim, Dimensions: []domain.UsageDimension{balDim}}
 	got := formatAccountLine(u)
 
@@ -319,7 +319,7 @@ func TestFormatAccountLineBalance(t *testing.T) {
 
 // TestFormatAccountLineBalanceDepleted 验证余额<=0 渲染红点。
 func TestFormatAccountLineBalanceDepleted(t *testing.T) {
-	balDim := domain.UsageDimension{Name: "可用余额", Balance: 0, Currency: "CNY", PercentUsed: -1}
+	balDim := domain.UsageDimension{Name: "Available balance", Balance: 0, Currency: "CNY", PercentUsed: -1}
 	u := domain.ProviderUsage{AccountID: "d", Provider: "deepseek", Label: "DS", Primary: &balDim}
 	got := formatAccountLine(u)
 	if !strings.Contains(got, "["+colorRed+"]") {

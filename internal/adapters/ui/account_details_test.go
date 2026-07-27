@@ -101,10 +101,10 @@ func TestFormatMoney(t *testing.T) {
 
 // TestRenderDimensionBalance 验证余额型维度：显示 Balance 行，不画进度条（无 █/░/N/A%）。
 func TestRenderDimensionBalance(t *testing.T) {
-	dim := domain.UsageDimension{Name: "可用余额", Balance: 49.58894, Currency: "CNY", PercentUsed: -1}
+	dim := domain.UsageDimension{Name: "Available balance", Balance: 49.58894, Currency: "CNY", PercentUsed: -1}
 	got := renderDimension(dim)
 
-	if !strings.Contains(got, "可用余额") {
+	if !strings.Contains(got, "Available balance") {
 		t.Errorf("should contain dim name, got: %q", got)
 	}
 	if !strings.Contains(got, "¥49.59") {

@@ -36,9 +36,9 @@ var providerOptions = []string{"glm", "minimax", "kimi", "deepseek"}
 
 // 各字段 placeholder。
 const (
-	phLabel    = "e.g. 智谱编码-主力"
-	phProvider   = "选择厂商"
-	phBaseURL  = "留空使用默认"
+	phLabel    = "e.g. GLM main"
+	phProvider = "Select provider"
+	phBaseURL  = "leave empty for default"
 	phTokenEnv = "e.g. GLM_API_KEY"
 )
 
@@ -124,7 +124,7 @@ func (f *AccountForm) submit() {
 	}
 	if f.onSubmit != nil {
 		f.onSubmit(domain.Account{
-			Provider:   provider,
+			Provider: provider,
 			Label:    label,
 			BaseURL:  f.text(afFieldBaseURL),
 			TokenEnv: f.text(afFieldTokenEnv),
@@ -149,7 +149,7 @@ func (f *AccountForm) Primitive() tview.Primitive {
 	hint := tview.NewTextView().
 		SetDynamicColors(true).
 		SetTextAlign(tview.AlignCenter).
-		SetText("[" + colorSecondary + "]Enter 提交 · ESC 取消[-]")
+		SetText("[" + colorSecondary + "]Enter submit · ESC cancel[-]")
 	column := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(f.form, 0, 1, true).
 		AddItem(hint, 1, 0, false)

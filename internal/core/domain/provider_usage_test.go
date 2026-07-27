@@ -20,7 +20,7 @@ import "testing"
 // 在 SelectPrimary 中被跳过（配额型行为不受影响）。
 func TestUsageDimensionBalanceFields(t *testing.T) {
 	dim := UsageDimension{
-		Name:        "可用余额",
+		Name:        "Available balance",
 		Balance:     49.58,
 		Currency:    "CNY",
 		PercentUsed: -1,

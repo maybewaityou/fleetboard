@@ -172,7 +172,7 @@ type HelpModal struct {
 func NewHelpModal() *HelpModal {
 	bodyTv := helpTextView(renderHelpBody())
 	bodyTv.SetScrollable(true)
-	title := helpTextView("[" + colorAccent + "::b]fleetboard — Key Bindings  (Esc / ? / q 关闭)[-]")
+	title := helpTextView("[" + colorAccent + "::b]fleetboard — Key Bindings  (Esc / ? / q to close)[-]")
 	root := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(title, 1, 0, false).
 		AddItem(nil, 1, 0, false).

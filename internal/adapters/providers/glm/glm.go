@@ -55,11 +55,11 @@ const (
 	limitTypeTime   = "TIME_LIMIT"
 
 	unitPercent = "%"
-	unitCount   = "次"
+	unitCount   = "uses"
 
-	nameTokens5h     = "5小时额度"
-	nameTokensWeekly = "每周额度"
-	nameTimeMonthly  = "MCP每月"
+	nameTokens5h     = "5h Quota"
+	nameTokensWeekly = "Weekly Quota"
+	nameTimeMonthly  = "MCP Monthly"
 
 	respCodeOK = 200
 )
@@ -104,7 +104,7 @@ type apiLimit struct {
 func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.ProviderUsage, error) {
 	u := domain.ProviderUsage{
 		AccountID: acc.ID,
-		Provider:    "glm",
+		Provider:  "glm",
 		Label:     acc.Label,
 		FetchedAt: time.Now(),
 	}
@@ -180,7 +180,7 @@ func buildDimensions(limits []apiLimit) []domain.UsageDimension {
 	})
 	tokenNames := []string{nameTokens5h, nameTokensWeekly}
 	for i, l := range tokens {
-		name := fmt.Sprintf("额度#%d", i+1)
+		name := fmt.Sprintf("Quota #%d", i+1)
 		if i < len(tokenNames) {
 			name = tokenNames[i]
 		}

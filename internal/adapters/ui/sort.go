@@ -27,9 +27,9 @@ import (
 type SortMode int
 
 const (
-	SortByNameAsc SortMode = iota // Name ↑
-	SortByUsageDesc               // Usage % ↓
-	SortByRefreshedDesc           // Last Refreshed ↓
+	SortByNameAsc       SortMode = iota // Name ↑
+	SortByUsageDesc                     // Usage % ↓
+	SortByRefreshedDesc                 // Last Refreshed ↓
 )
 
 // String 返回展示标签（列表标题与排序 toast 共用）。

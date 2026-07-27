@@ -74,8 +74,8 @@ func TestFetchUsageGolden(t *testing.T) {
 		t.Fatalf("len(Dimensions) = %d, want 1", len(u.Dimensions))
 	}
 	d := u.Dimensions[0]
-	if d.Name != "可用余额" {
-		t.Errorf("dim.Name = %q, want 可用余额", d.Name)
+	if d.Name != "Available balance" {
+		t.Errorf("dim.Name = %q, want Available balance", d.Name)
 	}
 	if d.Balance != 110.0 {
 		t.Errorf("dim.Balance = %v, want 110.0 (total_balance \"110.00\" parsed, no /100)", d.Balance)
@@ -91,8 +91,8 @@ func TestFetchUsageGolden(t *testing.T) {
 	}
 
 	// (d) Primary 指向余额维度
-	if u.Primary == nil || u.Primary.Name != "可用余额" {
-		t.Errorf("Primary = %+v, want 可用余额 dim", u.Primary)
+	if u.Primary == nil || u.Primary.Name != "Available balance" {
+		t.Errorf("Primary = %+v, want Available balance dim", u.Primary)
 	}
 
 	// 账号字段 + Basic Info
