@@ -80,5 +80,5 @@ func makeTag(text, bg string) string {
 	if text == "" {
 		return ""
 	}
-	return "[black:" + bg + "::b]  " + text + "  [-]"
+	return "[black:" + bg + ":b]  " + text + "  [-]"
 }

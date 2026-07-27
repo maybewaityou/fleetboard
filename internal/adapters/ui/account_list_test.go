@@ -48,8 +48,8 @@ func TestFormatAccountLine_WithPrimary(t *testing.T) {
 		t.Errorf("missing label %q in: %q", "prod-glm", got)
 	}
 	// provider chip: unified accent background (lazytmux tagChip style), black text
-	if !strings.Contains(got, "[black:"+colorAccent+"::b]") {
-		t.Errorf("missing provider chip [black:%s::b] in: %q", colorAccent, got)
+	if !strings.Contains(got, "[black:"+colorAccent+":b]") {
+		t.Errorf("missing provider chip [black:%s:b] in: %q", colorAccent, got)
 	}
 	if !strings.Contains(got, "glm") {
 		t.Errorf("missing provider text in: %q", got)
@@ -139,8 +139,8 @@ func TestFormatAccountLine_UnknownProvider(t *testing.T) {
 	}
 	got := formatAccountLine(u)
 	// provider chip is unified accent regardless of provider identity
-	if !strings.Contains(got, "[black:"+colorAccent+"::b]") {
-		t.Errorf("provider chip must be unified accent [black:%s::b]: %q", colorAccent, got)
+	if !strings.Contains(got, "[black:"+colorAccent+":b]") {
+		t.Errorf("provider chip must be unified accent [black:%s:b]: %q", colorAccent, got)
 	}
 }
 

@@ -137,7 +137,7 @@ func providerInfoLine(provider string) string {
 	if v == "" {
 		v = "—"
 	}
-	return fmt.Sprintf("  [%s]%-10s[-]  [black:%s::b] %s [-:-:-]\n", colorSecondary, "Provider:", colorAccent, v)
+	return fmt.Sprintf("  [%s]%-10s[-]  [black:%s:b] %s [-:-:-]\n", colorSecondary, "Provider:", colorAccent, v)
 }
 
 // RenderEmpty swaps the pane for a centered placeholder when nothing is
