@@ -48,6 +48,7 @@ import (
 	"github.com/maybewaityou/fleetboard/internal/core/domain"
 	"github.com/maybewaityou/fleetboard/internal/core/services"
 	"github.com/maybewaityou/fleetboard/internal/logger"
+	"github.com/maybewaityou/fleetboard/internal/tz"
 )
 
 var (
@@ -62,6 +63,15 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() { _ = sugar.Sync() }()
+
+	// Resolve the real local timezone before anything formats a time. Without
+	// this, Termux/Android silently falls back to UTC (its zoneinfo lives under a
+	// non-standard $PREFIX path Go's LoadLocation never searches), so every
+	// .Local() timestamp in Details renders 8h off on a CST device. tz.Init embeds
+	// the tzdb and rebinds time.Local from $TZ / Android getprop.
+	if name := tz.Init(); name != "" {
+		sugar.Infow("timezone resolved", "zone", name)
+	}
 
 	root := &cobra.Command{
 		Use:   "fleetboard",
