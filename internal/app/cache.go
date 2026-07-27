@@ -31,11 +31,13 @@ type Cache struct {
 // NewCache 构造一个空 Cache。
 func NewCache() *Cache { return &Cache{} }
 
-// ReplaceAll 替换整个数据集（R / boot / CRUD 后用）。
+// ReplaceAll 替换整个数据集（R / boot / CRUD 后用）。拷贝入参 slice，
+// 使 cache 持有独立副本——caller 传入后可安全保留或修改原 slice。
 func (c *Cache) ReplaceAll(usages []domain.ProviderUsage) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.current = usages
+	c.current = make([]domain.ProviderUsage, len(usages))
+	copy(c.current, usages)
 }
 
 // Snapshot 返回当前数据集的浅拷贝；调用方独占返回切片，
