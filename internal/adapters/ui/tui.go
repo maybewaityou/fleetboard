@@ -69,6 +69,7 @@ type Config struct {
 	Logger          *zap.SugaredLogger
 	Version         string
 	Commit          string
+	UIConfig        domain.UIConfig
 	InitialData     []domain.ProviderUsage
 	LoadInitial     LoadInitialFunc     // boot — async first fetch; nil → sync InitialData path (tests)
 	RefreshSelected RefreshSelectedFunc // r — refresh the currently-selected account
@@ -86,8 +87,9 @@ type Config struct {
 type TUI struct {
 	logger *zap.SugaredLogger
 
-	version string
-	commit  string
+	version  string
+	commit   string
+	uiConfig domain.UIConfig
 
 	app *tview.Application
 
@@ -134,6 +136,7 @@ func NewTUI(cfg Config) *TUI {
 		logger:          cfg.Logger,
 		version:         cfg.Version,
 		commit:          cfg.Commit,
+		uiConfig:        cfg.UIConfig,
 		sortMode:        SortByNameAsc,
 		allCache:        cfg.InitialData,
 		loadInitial:     cfg.LoadInitial,
@@ -158,6 +161,7 @@ func (t *TUI) Run() error {
 		}
 	}()
 	t.app = initializeTheme()
+	applyColorScheme(t.uiConfig.Colors) // 安装用户配色（零值→默认）
 	t.app.EnableMouse(true)
 	t.queueDraw = func(f func()) { t.app.QueueUpdateDraw(f) }
 	t.buildComponents().buildLayout().bindEvents()

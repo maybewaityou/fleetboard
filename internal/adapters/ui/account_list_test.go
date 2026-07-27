@@ -461,3 +461,19 @@ func boxHorizontalPadding(t *testing.T, al *AccountList) (left, right int) {
 	right = int(box.FieldByName("paddingRight").Int())
 	return left, right
 }
+
+// TestFormatAccountLine_BalanceColorConfigurable 验证余额点色随 applyColorScheme 变化：
+// 把余额阈值设为「>=100 红 / <100 绿」后，Balance=150 应染红点（默认下 150>=10 为绿）。
+func TestFormatAccountLine_BalanceColorConfigurable(t *testing.T) {
+	restoreColors(t) // color_config_test.go 提供：t.Cleanup 复位为默认配色
+	applyColorScheme(domain.ColorsConfig{
+		Balance: domain.ThresholdColors{Thresholds: []float64{100}, Colors: []string{"red", "green"}},
+	})
+	balDim := domain.UsageDimension{Name: "Available balance", Balance: 150, Currency: "USD", PercentUsed: -1}
+	u := domain.ProviderUsage{AccountID: "x", Provider: "newapi", Label: "relay", Primary: &balDim, Dimensions: []domain.UsageDimension{balDim}}
+	got := formatAccountLine(u)
+	// 阈值 [100] 降序：150>=100 → colors[0]=red。默认 [10,1] 下 150 会是绿，故此断言证明配置生效。
+	if !strings.Contains(got, "["+colorRed+"]●[-]") {
+		t.Errorf("with balance>=100 threshold=red, 150 should render red dot: %q", got)
+	}
+}

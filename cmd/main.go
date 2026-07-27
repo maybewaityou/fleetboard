@@ -204,6 +204,7 @@ func run(sugar *zap.SugaredLogger) error {
 		Logger:          sugar,
 		Version:         version,
 		Commit:          gitCommit,
+		UIConfig:        cfg.UI, // 透传颜色阈值等 UI 配置
 		LoadInitial:     refreshAll, // boot — async first fetch via the loading screen
 		RefreshSelected: refreshSelected,
 		RefreshAll:      refreshAll,

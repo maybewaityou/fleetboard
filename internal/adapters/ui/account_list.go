@@ -174,14 +174,10 @@ func formatAccountLine(u domain.ProviderUsage) string {
 	pctStr, dot := "N/A", "○"
 	dotCol := colorGray // N/A 默认灰点
 	if d != nil && d.Currency != "" {
-		// 余额型：显示余额 + 绿/红点（按余额正负）
+		// 余额型：显示余额 + BalanceColor 染色（阈值可配，默认 >=10 绿 / >=1 黄 / <1 红）。
 		pctStr = formatMoneyShort(d.Balance, d.Currency)
 		dot = "●"
-		if d.Balance > 0 {
-			dotCol = colorGreen
-		} else {
-			dotCol = colorRed
-		}
+		dotCol = BalanceColor(d.Balance, d.Currency)
 	} else if d != nil {
 		// 配额型：百分比 + StatusColor
 		pctStr = fmt.Sprintf("%d%%", int(d.PercentUsed))
