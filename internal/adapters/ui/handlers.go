@@ -15,6 +15,8 @@
 package ui
 
 import (
+	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
@@ -99,27 +101,69 @@ func (t *TUI) closeForm() {
 	t.focusList()
 }
 
-// confirmDelete 弹出确认对话框；确认后调 onDeleteAccount(selectedID) 并 Render 新数据集。
+// buildDeleteConfirmMessage 构造删除确认文案：显示账号名称 + provider 标识，并附"不可撤销"提示。
+// 纯文本（颜色集中在按钮上，与 lazytmux showKillConfirmModal 一致），便于 tview.Modal 居中渲染。
+func buildDeleteConfirmMessage(label, provider string) string {
+	if label == "" {
+		label = "(unnamed)"
+	}
+	if provider == "" {
+		provider = "?"
+	}
+	return fmt.Sprintf("Delete account 「%s」(%s)?\n\nThis action cannot be undone.", label, provider)
+}
+
+// confirmDelete 弹出确认对话框（lazytmux 风格）：显示账号名称 + provider；按钮 Cancel(蓝)/Delete(红)；
+// 快捷键 d/D 确认（=触发键）、c/C 取消、ESC 取消；Cancel 默认聚焦（安全默认）。确认后调
+// onDeleteAccount(selectedID) 并 Render 新数据集。
 func (t *TUI) confirmDelete() {
-	if t.selectedID == "" {
+	u, ok := t.accountList.GetSelected()
+	if !ok || t.selectedID == "" {
 		t.setStatusTemporary("[" + colorYellow + "]No account selected[-]")
 		return
 	}
 	id := t.selectedID
+	msg := buildDeleteConfirmMessage(u.Label, u.Provider)
+
+	// doDelete 供 SetDoneFunc 与 SetInputCapture 两路共用（同 lazytmux killSession）。
+	doDelete := func() {
+		t.closeModal()
+		if t.onDeleteAccount != nil {
+			if usages := t.onDeleteAccount(id); usages != nil {
+				// modal 回调在 tview 主循环执行——必须同步刷新，不能 QueueUpdateDraw，否则死锁。
+				t.applyDataset(usages)
+			}
+		}
+	}
+
 	modal := tview.NewModal().
-		SetText("Delete account " + id + "?").
-		AddButtons([]string{"Delete", "Cancel"}).
-		SetDoneFunc(func(_ int, buttonLabel string) {
-			if buttonLabel == "Delete" && t.onDeleteAccount != nil {
-				t.closeModal()
-				if usages := t.onDeleteAccount(id); usages != nil {
-					// modal 回调在 tview 主循环执行——与 doTogglePin 同理，必须同步刷新，
-					// 不能走 Render(QueueUpdateDraw)，否则主循环自死锁。
-					t.applyDataset(usages)
-				}
+		SetText(msg).
+		AddButtons([]string{
+			"[" + colorAccent + "]C[-]ancel", // 第一个 = 默认聚焦 = 安全默认
+			"[" + colorRed + "]D[-]elete",    // 破坏性 = 红
+		}).
+		SetDoneFunc(func(buttonIndex int, _ string) {
+			if buttonIndex == 1 { // 索引 1 = Delete；0 或 -1(ESC 透传) = Cancel
+				doDelete()
 				return
 			}
 			t.closeModal()
 		})
+	// 字母快捷键与按钮对应（lazytmux 模式：确认键=触发键 d）。
+	modal.SetInputCapture(func(e *tcell.EventKey) *tcell.EventKey {
+		switch e.Rune() {
+		case 'd', 'D':
+			doDelete()
+			return nil
+		case 'c', 'C':
+			t.closeModal()
+			return nil
+		}
+		if e.Key() == tcell.KeyESC {
+			t.closeModal()
+			return nil
+		}
+		return e
+	})
 	t.app.SetRoot(modal, true)
 }

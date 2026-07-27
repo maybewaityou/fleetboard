@@ -165,3 +165,13 @@ func TestRenderSkipsRecentWhenNil(t *testing.T) {
 		t.Error("Render should output Usage block when Recent is set")
 	}
 }
+
+// TestBuildDeleteConfirmMessage 验证删除确认文案含账号名称与 provider、以及"不可撤销"提示。
+func TestBuildDeleteConfirmMessage(t *testing.T) {
+	got := buildDeleteConfirmMessage("GLM main", "glm")
+	for _, want := range []string{"GLM main", "glm", "cannot be undone"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("delete message missing %q, got: %q", want, got)
+		}
+	}
+}
