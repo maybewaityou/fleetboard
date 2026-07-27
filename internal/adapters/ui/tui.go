@@ -63,6 +63,12 @@ type Config struct {
 	InitialData     []domain.VendorUsage
 	RefreshSelected RefreshSelectedFunc // r — refresh the currently-selected account
 	RefreshAll      RefreshAllFunc      // R — refresh every account
+
+	// CRUD 回调（a/e/d）。均返回更新后的完整数据集，TUI 直接 Render，不碰 store（六边形）。
+	OnSaveAccount   func(domain.Account) []domain.VendorUsage                // a — 新增账号
+	OnDeleteAccount func(id string) []domain.VendorUsage                     // d — 删除账号
+	OnEditAccount   func(id string, acc domain.Account) []domain.VendorUsage // e — 编辑账号
+	OnLoadAccount   func(id string) (domain.Account, bool)                   // 编辑时反查账号预填表单
 }
 
 // TUI is the runnable tview application. It implements ports.View (Run + Render).
@@ -93,6 +99,11 @@ type TUI struct {
 	refreshSelected RefreshSelectedFunc
 	refreshAll      RefreshAllFunc
 
+	onSaveAccount   func(domain.Account) []domain.VendorUsage
+	onDeleteAccount func(id string) []domain.VendorUsage
+	onEditAccount   func(id string, acc domain.Account) []domain.VendorUsage
+	onLoadAccount   func(id string) (domain.Account, bool)
+
 	// statusTimer reverts a transient footer message back to the default hints.
 	statusTimer *time.Timer
 	// queueDraw schedules a func on the tview main loop; overridable in tests so
@@ -111,6 +122,10 @@ func NewTUI(cfg Config) *TUI {
 		allCache:        cfg.InitialData,
 		refreshSelected: cfg.RefreshSelected,
 		refreshAll:      cfg.RefreshAll,
+		onSaveAccount:   cfg.OnSaveAccount,
+		onDeleteAccount: cfg.OnDeleteAccount,
+		onEditAccount:   cfg.OnEditAccount,
+		onLoadAccount:   cfg.OnLoadAccount,
 	}
 }
 
@@ -326,10 +341,18 @@ func (t *TUI) handleGlobalKeys(e *tcell.EventKey) *tcell.EventKey {
 	case '?':
 		t.openHelp()
 		return nil
-	case 'a', 'e', 'd', 's':
-		// CRUD/sort are out of scope for the UI shell (Task 9/12 wiring); surface
-		// that explicitly rather than swallowing the key silently.
-		t.setStatusTemporary("[" + colorYellow + "]not wired yet[-]")
+	case 'a':
+		t.openAccountForm(false)
+		return nil
+	case 'e':
+		t.openAccountForm(true)
+		return nil
+	case 'd':
+		t.confirmDelete()
+		return nil
+	case 's':
+		// sort not yet implemented; surface explicitly rather than swallowing.
+		t.setStatusTemporary("[" + colorYellow + "]sort not wired yet[-]")
 		return nil
 	}
 	return e

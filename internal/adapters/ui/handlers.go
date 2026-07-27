@@ -17,6 +17,8 @@ package ui
 import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+
+	"github.com/maybewaityou/fleetboard/internal/core/domain"
 )
 
 // openHelp 弹出帮助面板（lazytmux 风格：app.SetRoot 换根，非 Pages）。
@@ -35,7 +37,6 @@ func (t *TUI) openHelp() {
 		}
 		return e
 	})
-	// 三层 Flex 居中：外列留白 + 中行(上下留白 + help) + 右列留白。
 	flex := tview.NewFlex().
 		AddItem(nil, 0, 1, false).
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
@@ -47,8 +48,74 @@ func (t *TUI) openHelp() {
 	t.app.SetFocus(help.focus)
 }
 
-// closeModal 回到主仪表盘（恢复 root + 焦点回列表）。
+// closeModal 回到主仪表盘（恢复 root + 焦点回列表）。help 与 delete-confirm 共用。
 func (t *TUI) closeModal() {
 	t.app.SetRoot(t.root, true)
 	t.focusList()
+}
+
+// openAccountForm 打开账号表单：edit=false 新增（空表单），edit=true 编辑（用
+// onLoadAccount 反查当前选中账号并 Prefill）。提交后按 editingID 是否非空决定
+// 调 onEditAccount（保留 ID）还是 onSaveAccount（新建）。回调返回新数据集，TUI
+// 直接 Render（与 RefreshAll 同构，TUI 不碰 store）。
+func (t *TUI) openAccountForm(edit bool) {
+	form := NewAccountForm()
+	editingID := ""
+	if edit {
+		if t.selectedID == "" {
+			t.setStatusTemporary("[" + colorYellow + "]no account selected[-]")
+			return
+		}
+		if t.onLoadAccount != nil {
+			if acc, ok := t.onLoadAccount(t.selectedID); ok {
+				form.Prefill(acc)
+				editingID = t.selectedID
+			}
+		}
+	}
+	id := editingID
+	form.OnSubmit(func(acc domain.Account) {
+		t.closeForm()
+		var usages []domain.VendorUsage
+		switch {
+		case id != "" && t.onEditAccount != nil:
+			usages = t.onEditAccount(id, acc)
+		case t.onSaveAccount != nil:
+			usages = t.onSaveAccount(acc)
+		}
+		if usages != nil {
+			t.Render(usages)
+		}
+	}).OnCancel(t.closeForm)
+	t.app.SetRoot(form.Primitive(), true)
+	t.app.SetFocus(form.Form())
+}
+
+// closeForm 关闭账号表单，回到主仪表盘。
+func (t *TUI) closeForm() {
+	t.app.SetRoot(t.root, true)
+	t.focusList()
+}
+
+// confirmDelete 弹出确认对话框；确认后调 onDeleteAccount(selectedID) 并 Render 新数据集。
+func (t *TUI) confirmDelete() {
+	if t.selectedID == "" {
+		t.setStatusTemporary("[" + colorYellow + "]no account selected[-]")
+		return
+	}
+	id := t.selectedID
+	modal := tview.NewModal().
+		SetText("Delete account " + id + "?").
+		AddButtons([]string{"Delete", "Cancel"}).
+		SetDoneFunc(func(_ int, buttonLabel string) {
+			if buttonLabel == "Delete" && t.onDeleteAccount != nil {
+				t.closeModal()
+				if usages := t.onDeleteAccount(id); usages != nil {
+					t.Render(usages)
+				}
+				return
+			}
+			t.closeModal()
+		})
+	t.app.SetRoot(modal, true)
 }

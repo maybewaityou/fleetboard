@@ -146,6 +146,39 @@ func run(sugar *zap.SugaredLogger) error {
 		return cache.snapshot()
 	}
 
+	// CRUD 回调（a/e/d）：mutate cfg.Accounts → store.Save → refreshAll。
+	// cfg 是闭包按引用捕获的局部变量，append/remove/edit 后 refreshAll 下次读到新 Accounts。
+	onSaveAccount := func(acc domain.Account) []domain.VendorUsage {
+		cfg.Accounts = append(cfg.Accounts, acc)
+		if err := store.Save(cfg); err != nil {
+			sugar.Warnw("save config (add) failed", "error", err)
+		}
+		return refreshAll()
+	}
+	onDeleteAccount := func(id string) []domain.VendorUsage {
+		cfg.Accounts = removeAccount(cfg.Accounts, id)
+		if err := store.Save(cfg); err != nil {
+			sugar.Warnw("save config (delete) failed", "error", err)
+		}
+		return refreshAll()
+	}
+	onEditAccount := func(id string, acc domain.Account) []domain.VendorUsage {
+		for i := range cfg.Accounts {
+			if cfg.Accounts[i].ID == id {
+				acc.ID = id // 保留原 ID（form 提交的 ID 可能被改动）
+				cfg.Accounts[i] = acc
+				break
+			}
+		}
+		if err := store.Save(cfg); err != nil {
+			sugar.Warnw("save config (edit) failed", "error", err)
+		}
+		return refreshAll()
+	}
+	onLoadAccount := func(id string) (domain.Account, bool) {
+		return findAccount(cfg.Accounts, id)
+	}
+
 	t := ui.NewTUI(ui.Config{
 		Logger:          sugar,
 		Version:         version,
@@ -153,6 +186,10 @@ func run(sugar *zap.SugaredLogger) error {
 		InitialData:     cache.snapshot(),
 		RefreshSelected: refreshSelected,
 		RefreshAll:      refreshAll,
+		OnSaveAccount:   onSaveAccount,
+		OnDeleteAccount: onDeleteAccount,
+		OnEditAccount:   onEditAccount,
+		OnLoadAccount:   onLoadAccount,
 	})
 
 	// Background refresher: tick on cfg.Refresh.Interval (default 5m) and
@@ -231,6 +268,17 @@ func findAccount(accs []domain.Account, id string) (domain.Account, bool) {
 		}
 	}
 	return domain.Account{}, false
+}
+
+// removeAccount 返回不含 id 的新切片（不改原切片），供删除账号使用。
+func removeAccount(accs []domain.Account, id string) []domain.Account {
+	out := make([]domain.Account, 0, len(accs))
+	for _, a := range accs {
+		if a.ID != id {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // parseRefreshInterval parses cfg.Refresh.Interval with time.ParseDuration and
