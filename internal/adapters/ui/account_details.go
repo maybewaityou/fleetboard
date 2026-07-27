@@ -107,6 +107,11 @@ func (d *AccountDetails) Render(u domain.ProviderUsage) {
 		b.WriteString(renderDimension(dim))
 	}
 
+	// Recent 消耗摘要（仅余额型 provider 填充；nil 时跳过，其他 provider 无感）。
+	if u.Recent != nil {
+		b.WriteString(renderRecent(*u.Recent))
+	}
+
 	d.SetText(b.String())
 }
 
@@ -307,4 +312,21 @@ func formatMoney(balance float64, currency string) string {
 		return "-" + sym + fmt.Sprintf("%.2f", -balance)
 	}
 	return fmt.Sprintf("%s%.2f", sym, balance)
+}
+
+// renderRecent 渲染近窗口消耗摘要区块：
+//
+//	Usage (recent)
+//	  7-day:        $51.20
+//	  30-day:       $138.56
+//	  Live:         3 rpm / 1200 tpm
+//
+// 复用 basicInfoLine（pad10 对齐）与 formatMoney（带货币符号），风格与 Basic Info 一致。
+func renderRecent(r domain.RecentUsage) string {
+	var b strings.Builder
+	b.WriteString("\n[" + colorTitle + "::b]Usage (recent)[-]\n")
+	b.WriteString(basicInfoLine("7-day", formatMoney(r.Window7d, r.Currency)))
+	b.WriteString(basicInfoLine("30-day", formatMoney(r.Window30d, r.Currency)))
+	b.WriteString(basicInfoLine("Live", fmt.Sprintf("%d rpm / %d tpm", r.RPM, r.TPM)))
+	return b.String()
 }

@@ -129,3 +129,39 @@ func TestRenderDimensionBalance(t *testing.T) {
 		t.Errorf("balance dim should NOT show N/A percent, got: %q", got)
 	}
 }
+
+// TestRenderRecent 验证 Recent 区块渲染键值行；nil 时不渲染。
+func TestRenderRecent(t *testing.T) {
+	// 有 Recent
+	got := renderRecent(domain.RecentUsage{Window7d: 51.2, Window30d: 138.56, RPM: 3, TPM: 1200, Currency: "USD"})
+	for _, want := range []string{"Usage (recent)", "7-day:", "$51.20", "30-day:", "$138.56", "Live:", "3 rpm / 1200 tpm"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("renderRecent missing %q, got: %q", want, got)
+		}
+	}
+}
+
+// TestRenderSkipsRecentWhenNil 验证 Render 在 Recent=nil 时不输出 Usage 区块，非空时输出。
+// AccountDetails 内嵌 *tview.TextView，用 GetText(true) 读取渲染后的文本断言。
+func TestRenderSkipsRecentWhenNil(t *testing.T) {
+	d := NewAccountDetails()
+	u := domain.ProviderUsage{
+		Provider:   "newapi",
+		Label:      "x",
+		Dimensions: []domain.UsageDimension{{Name: "Available balance", Balance: 1, Currency: "USD", PercentUsed: -1}},
+	}
+	u.Primary = &u.Dimensions[0]
+
+	// Recent=nil → 不输出 Usage 区块。
+	d.Render(u)
+	if strings.Contains(d.GetText(true), "Usage (recent)") {
+		t.Error("Render should NOT output Usage block when Recent is nil")
+	}
+
+	// Recent 非空 → 输出 Usage 区块。
+	u.Recent = &domain.RecentUsage{Window7d: 5, Currency: "USD"}
+	d.Render(u)
+	if !strings.Contains(d.GetText(true), "Usage (recent)") {
+		t.Error("Render should output Usage block when Recent is set")
+	}
+}
