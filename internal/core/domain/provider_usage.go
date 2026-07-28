@@ -120,6 +120,11 @@ type UsageDimension struct {
 	// 在维度缺失 ResetsAt 时仍能稳定选出/置顶最短期窗口（GLM 偶发不返回 5h 的 nextResetTime，
 	// 若靠重置时间排序会把 5h 误排到 weekly/MCP 之后）。零值维度保持既有「最近重置」逻辑。
 	Order int
+
+	// Unlimited 标记该窗口为「无限制」（MiniMax *_status=3）。true 时 UI 渲染 ∞ 而非百分比/进度条，
+	// 且 PercentUsed 应为 -1（让 SelectPrimary 跳过，不被选为最值得警惕档）。仅 minimax 填充；
+	// 其他 provider 零值=false=有限额，无行为变化。
+	Unlimited bool
 }
 
 // SelectPrimary 把 PercentUsed 最大的有效维度设为 Primary（最值得警惕的一档）。
