@@ -192,18 +192,13 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 			dims = append(dims, moneyQuotaDim("Daily limit", *s.DailyLimitUSD, s.DailyUsageUSD, *s.DailyLimitUSD-s.DailyUsageUSD, usd, time.Time{}))
 		}
 		if s.WeeklyLimitUSD != nil && *s.WeeklyLimitUSD > 0 {
-			var reset time.Time
-			if s.WeeklyWindowStart != nil {
-				reset = *s.WeeklyWindowStart
-			}
-			dims = append(dims, moneyQuotaDim("Weekly limit", *s.WeeklyLimitUSD, s.WeeklyUsageUSD, *s.WeeklyLimitUSD-s.WeeklyUsageUSD, usd, reset))
+			dims = append(dims, moneyQuotaDim("Weekly limit", *s.WeeklyLimitUSD, s.WeeklyUsageUSD, *s.WeeklyLimitUSD-s.WeeklyUsageUSD, usd, time.Time{}))
 		}
 		if s.MonthlyLimitUSD != nil && *s.MonthlyLimitUSD > 0 {
 			dims = append(dims, moneyQuotaDim("Monthly limit", *s.MonthlyLimitUSD, s.MonthlyUsageUSD, *s.MonthlyLimitUSD-s.MonthlyUsageUSD, usd, time.Time{}))
 		}
 	}
 
-	u.Provider = "sub2api"
 	u.Dimensions = dims
 	u.Primary = &u.Dimensions[0]
 	u.PlanLevel = r.PlanName
