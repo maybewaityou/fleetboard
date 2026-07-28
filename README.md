@@ -41,7 +41,7 @@ new-api is `newapi` (no hyphen).
 
 ## 🔒 How it works
 
-fleetboard reads your account config, calls each provider's official usage/balance API, normalizes the result, and renders it. Tokens are read from environment variables (named per account) and never written to disk or sent anywhere except the provider's own API. Local parsing of `~/.claude/` usage files is intentionally out of scope — the server is the source of truth.
+fleetboard reads your account config, calls each provider's official usage/balance API, normalizes the result, and renders it. Tokens are read from environment variables (named per account) and never written to disk or sent anywhere except the provider's own API. Local parsing of `~/.claude/` usage files is intentionally out of scope — the server is the source of truth. Each provider fetch has a 15s fallback timeout (configurable via `refresh.timeout`), so one stuck provider can't stall the overall refresh.
 
 ## 📦 Installation
 
@@ -119,6 +119,7 @@ accounts:
 refresh:
   on_start: true
   interval: 5m
+  timeout: 15s  # per-account fetch timeout; recommend ≥12s (≥ adapter HTTP timeout); empty = default 15s
 ui:
   theme: tokyo-night
 ```
