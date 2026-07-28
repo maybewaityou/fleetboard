@@ -89,6 +89,12 @@ func TestFetchUsageGolden(t *testing.T) {
 	if d.Source != "api-balanced" {
 		t.Errorf("dim.Source = %q, want api-balanced", d.Source)
 	}
+	if d.Granted != 10.0 {
+		t.Errorf("dim.Granted = %v, want 10.0 (granted_balance)", d.Granted)
+	}
+	if d.ToppedUp != 100.0 {
+		t.Errorf("dim.ToppedUp = %v, want 100.0 (topped_up_balance)", d.ToppedUp)
+	}
 
 	// (d) Primary 指向余额维度
 	if u.Primary == nil || u.Primary.Name != "Available balance" {
@@ -245,5 +251,32 @@ func TestFetchUsageEmptyCurrency(t *testing.T) {
 	}
 	if u.Dimensions[0].Balance != 5.0 {
 		t.Errorf("dim.Balance = %v, want 5.0 (balance data preserved)", u.Dimensions[0].Balance)
+	}
+}
+
+// TestFetchUsageBadGrantedBalance 验证 granted_balance 解析失败不致命：
+// 主余额 total 照常成功，Granted 留零值，ToppedUp 正常解析。
+func TestFetchUsageBadGrantedBalance(t *testing.T) {
+	payload := `{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"5.00","granted_balance":"oops","topped_up_balance":"5.00"}]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, payload)
+	}))
+	defer srv.Close()
+
+	t.Setenv("DEEPSEEK_API_KEY", "K")
+	acc := domain.Account{ID: "d", Provider: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err != nil {
+		t.Fatalf("unexpected err (bad granted must NOT fail): %v", err)
+	}
+	d := u.Dimensions[0]
+	if d.Balance != 5.0 {
+		t.Errorf("dim.Balance = %v, want 5.0 (total preserved)", d.Balance)
+	}
+	if d.Granted != 0 {
+		t.Errorf("dim.Granted = %v, want 0 (parse failure → zero)", d.Granted)
+	}
+	if d.ToppedUp != 5.0 {
+		t.Errorf("dim.ToppedUp = %v, want 5.0 (valid parse)", d.ToppedUp)
 	}
 }
