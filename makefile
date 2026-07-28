@@ -1,5 +1,5 @@
 BINARY   := fleetboard
-VERSION  ?= v0.2.0
+VERSION  ?= v0.2.1
 COMMIT   := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS  := -X main.version=$(VERSION) -X main.gitCommit=$(COMMIT)
 
