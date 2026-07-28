@@ -17,6 +17,7 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/maybewaityou/fleetboard/internal/core/domain"
 )
@@ -173,5 +174,29 @@ func TestBuildDeleteConfirmMessage(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("delete message missing %q, got: %q", want, got)
 		}
+	}
+}
+
+// TestRenderDimensionMoneyQuota 验证金额配额维度：含 $used/$limit 与进度条，且不走纯 Balance 余额分支。
+func TestRenderDimensionMoneyQuota(t *testing.T) {
+	dim := domain.UsageDimension{Name: "5h window", MoneyLimit: 20, MoneyUsed: 7, Balance: 13, Currency: "USD", PercentUsed: 35, ResetsAt: time.Date(2026, 7, 28, 5, 0, 0, 0, time.UTC)}
+	got := renderDimension(dim)
+	for _, want := range []string{"5h window", "$7.00 / $20.00", "35%", "Resets:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("money-quota dim missing %q, got: %q", want, got)
+		}
+	}
+}
+
+// TestRenderRecentTodayTotal 验证 sub2api 今日/累计统计行（Window7d/30d 为零时不显示）。
+func TestRenderRecentTodayTotal(t *testing.T) {
+	got := renderRecent(domain.RecentUsage{TodayCost: 1.5, TotalCost: 15.0, TodayTokens: 3050, TotalTokens: 30000, RPM: 5, TPM: 1500, AvgDurationMs: 2500, Currency: "USD"})
+	for _, want := range []string{"Today:", "$1.50", "Total:", "$15.00", "Live:", "5 rpm / 1500 tpm", "Avg:", "2500ms"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("renderRecent(today/total) missing %q, got: %q", want, got)
+		}
+	}
+	if strings.Contains(got, "7-day:") || strings.Contains(got, "30-day:") {
+		t.Errorf("zero Window7d/30d should not render, got: %q", got)
 	}
 }
