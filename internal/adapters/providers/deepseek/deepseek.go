@@ -117,9 +117,14 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 		u.Err = fmt.Errorf("deepseek: decode response: %w", err)
 		return u, u.Err
 	}
+	// 账号可用状态：先于金额解析填充，确保错误路径（如空 balance_infos）也携带状态。
+	if r.IsAvailable {
+		u.Status = "active"
+	} else {
+		u.Status = "insufficient"
+	}
 	if len(r.BalanceInfos) == 0 {
-		u.Err = fmt.Errorf("deepseek: empty balance_infos")
-		return u, u.Err
+		u.Err = fmt.Errorf("deepseek: empty balance_infos"); return u, u.Err
 	}
 
 	info := r.BalanceInfos[0]

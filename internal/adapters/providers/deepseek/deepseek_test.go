@@ -101,6 +101,11 @@ func TestFetchUsageGolden(t *testing.T) {
 		t.Errorf("Primary = %+v, want Available balance dim", u.Primary)
 	}
 
+	// 账号状态：is_available=true → Status="active"
+		if u.Status != "active" {
+			t.Errorf("Status = %q, want active (is_available=true in golden)", u.Status)
+		}
+
 	// 账号字段 + Basic Info
 	if u.AccountID != "d" || u.Provider != "deepseek" || u.Label != "DeepSeek" {
 		t.Errorf("top fields wrong: %+v", u)
@@ -278,5 +283,28 @@ func TestFetchUsageBadGrantedBalance(t *testing.T) {
 	}
 	if d.ToppedUp != 5.0 {
 		t.Errorf("dim.ToppedUp = %v, want 5.0 (valid parse)", d.ToppedUp)
+	}
+}
+
+// TestFetchUsageUnavailable 验证 is_available=false 映射为 Status="insufficient"，
+// 余额照常返回（欠费但仍有余额数据）。
+func TestFetchUsageUnavailable(t *testing.T) {
+	payload := `{"is_available":false,"balance_infos":[{"currency":"CNY","total_balance":"0.50","granted_balance":"0.50","topped_up_balance":"0"}]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, payload)
+	}))
+	defer srv.Close()
+
+	t.Setenv("DEEPSEEK_API_KEY", "K")
+	acc := domain.Account{ID: "d", Provider: "deepseek", Label: "DeepSeek", TokenEnv: "DEEPSEEK_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if u.Status != "insufficient" {
+		t.Errorf("Status = %q, want insufficient (is_available=false)", u.Status)
+	}
+	if u.Dimensions[0].Balance != 0.5 {
+		t.Errorf("Balance = %v, want 0.5 (balance still returned when unavailable)", u.Dimensions[0].Balance)
 	}
 }
