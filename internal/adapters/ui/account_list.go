@@ -190,18 +190,19 @@ func formatAccountLine(u domain.ProviderUsage) string {
 	d := displayDimension(u)
 	pctStr, dot := "N/A", "○"
 	dotCol := colorGray // N/A 默认灰点
-	if d != nil && d.Currency != "" {
+	switch {
+	case d != nil && d.Currency != "":
 		// 余额型：显示余额 + BalanceColor 染色（阈值可配，默认 >=10 绿 / >=1 黄 / <1 红）。
 		pctStr = formatMoneyShort(d.Balance, d.Currency)
 		dot = "●"
 		dotCol = BalanceColor(d.Balance, d.Currency)
-	} else if d != nil && d.Unlimited {
+	case d != nil && d.Unlimited:
 		// 无限制窗口（MiniMax *_status=3）：列表兜底显示 ∞ + 绿点。仅当 5h 也无限制时命中
 		// （displayDimension 按 Order 选，5h=1 优先；5h 有限时列表显示 5h 百分比，weekly ∞ 只进详情页）。
 		pctStr = "∞"
 		dot = "●"
 		dotCol = colorGreen
-	} else if d != nil {
+	case d != nil:
 		// 配额型：百分比 + StatusColor
 		pctStr = fmt.Sprintf("%d%%", int(d.PercentUsed))
 		dot = "●"
