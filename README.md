@@ -24,14 +24,15 @@ account still has headroom.
 
 ## 📡 Supported providers
 
-| Provider   | Type    | Shows                                  | `base_url`  |
-|------------|---------|----------------------------------------|-------------|
-| `glm`      | Quota   | 5h / weekly / monthly usage % windows  | optional    |
-| `minimax`  | Quota   | usage % window                         | optional    |
-| `kimi`     | Balance | available balance (CNY / USD)          | optional    |
-| `deepseek` | Balance | available balance (CNY)                | optional    |
-| `sub2api`  | Balance | available balance (USD)                | **required** |
-| `newapi`   | Balance | available balance (USD)                | **required** |
+| Provider      | Type    | Shows                                   | `base_url`  |
+|---------------|---------|-----------------------------------------|-------------|
+| `glm`         | Quota   | 5h / weekly / monthly usage % windows   | optional    |
+| `minimax`     | Quota   | usage % window                          | optional    |
+| `kimi`        | Balance | available balance (CNY / USD)           | optional    |
+| `deepseek`    | Balance | available balance (CNY)                 | optional    |
+| `siliconflow` | Balance | available balance (CNY) + charged/total | optional    |
+| `sub2api`     | Balance | available balance (USD)                 | **required** |
+| `newapi`      | Balance | available balance (USD)                 | **required** |
 
 Quota-type providers report used / limit / percent / reset window; balance-type
 providers report a remaining balance. Self-hosted relays (`sub2api`, `new-api`)
@@ -99,6 +100,10 @@ accounts:
     provider: kimi
     label: Kimi
     token_env: MOONSHOT_API_KEY
+  - id: siliconflow-main
+    provider: siliconflow
+    label: SiliconFlow main
+    token_env: SILICONFLOW_API_KEY
   # Self-hosted relays: base_url is required (no default domain).
   - id: my-newapi
     provider: newapi

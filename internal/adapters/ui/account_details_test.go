@@ -268,3 +268,31 @@ func TestRender_DimensionsOrderedByOrder(t *testing.T) {
 		t.Errorf("dim order wrong: 5h=%d weekly=%d mcp=%d, want 5h<weekly<mcp", i5h, iWeekly, iMCP)
 	}
 }
+
+// TestRenderDimensionSiliconFlowBreakdown 验证 SiliconFlow 余额维度输出 Charged/Total 行。
+func TestRenderDimensionSiliconFlowBreakdown(t *testing.T) {
+	dim := domain.UsageDimension{
+		Name: "Available balance", Balance: 0.88, Currency: "CNY",
+		ChargeBalance: 88.0, TotalBalance: 88.88, PercentUsed: -1,
+	}
+	got := renderDimension(dim)
+	for _, want := range []string{"Balance:", "¥0.88", "Charged:", "¥88.00", "Total:", "¥88.88"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("siliconflow breakdown missing %q, got: %q", want, got)
+		}
+	}
+}
+
+// TestRenderDimensionSiliconFlowZeroBreakdown 验证零值细分不渲染 Charged/Total 行。
+func TestRenderDimensionSiliconFlowZeroBreakdown(t *testing.T) {
+	dim := domain.UsageDimension{
+		Name: "Available balance", Balance: 5.0, Currency: "CNY", PercentUsed: -1,
+	}
+	got := renderDimension(dim)
+	if strings.Contains(got, "Charged:") {
+		t.Errorf("zero ChargeBalance should not render Charged line, got: %q", got)
+	}
+	if strings.Contains(got, "Total:") {
+		t.Errorf("zero TotalBalance should not render Total line, got: %q", got)
+	}
+}

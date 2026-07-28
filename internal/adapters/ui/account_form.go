@@ -34,7 +34,7 @@ const (
 )
 
 // providerOptions 是 Provider 下拉的可选项（与 cmd/main 注册的 adapter 对应）。
-var providerOptions = []string{"glm", "minimax", "kimi", "deepseek", "sub2api", "newapi"}
+var providerOptions = []string{"glm", "minimax", "kimi", "deepseek", "sub2api", "newapi", "siliconflow"}
 
 // 各字段 placeholder。
 const (

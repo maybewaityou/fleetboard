@@ -22,14 +22,15 @@
 
 ## 📡 支持的厂商
 
-| 厂商 | 类型 | 展示内容 | `base_url` |
-|------|------|----------|------------|
-| `glm` | 配额型 | 5 小时 / 每周 / 每月用量百分比窗口 | 可选 |
-| `minimax` | 配额型 | 用量百分比窗口 | 可选 |
-| `kimi` | 余额型 | 可用余额（CNY / USD） | 可选 |
-| `deepseek` | 余额型 | 可用余额（CNY） | 可选 |
-| `sub2api` | 余额型 | 可用余额（USD） | **必填** |
-| `newapi` | 余额型 | 可用余额（USD） | **必填** |
+| 厂商          | 类型   | 展示内容                          | `base_url` |
+|---------------|--------|-----------------------------------|------------|
+| `glm`         | 配额型 | 5 小时 / 每周 / 每月用量百分比窗口 | 可选       |
+| `minimax`     | 配额型 | 用量百分比窗口                    | 可选       |
+| `kimi`        | 余额型 | 可用余额（CNY / USD）             | 可选       |
+| `deepseek`    | 余额型 | 可用余额（CNY）                   | 可选       |
+| `siliconflow` | 余额型 | 可用余额（CNY）+ 充值/总额        | 可选       |
+| `sub2api`     | 余额型 | 可用余额（USD）                   | **必填**   |
+| `newapi`      | 余额型 | 可用余额（USD）                   | **必填**   |
 
 配额型厂商返回 已用 / 上限 / 百分比 / 重置窗口；余额型厂商返回剩余余额。自建中转平台（`sub2api`、`new-api`）没有默认域名，`base_url` 必填。new-api 的 `provider` 取值为 `newapi`（无连字符）。
 
@@ -94,6 +95,10 @@ accounts:
     provider: kimi
     label: Kimi
     token_env: MOONSHOT_API_KEY
+  - id: siliconflow-main
+    provider: siliconflow
+    label: SiliconFlow 主账号
+    token_env: SILICONFLOW_API_KEY
   # 自建中转平台：base_url 必填（无默认域名）。
   - id: my-newapi
     provider: newapi

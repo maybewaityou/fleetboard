@@ -39,3 +39,23 @@ func TestUsageDimensionBalanceFields(t *testing.T) {
 		t.Errorf("SelectPrimary should skip PercentUsed<0 balance dim, got Primary=%+v", u.Primary)
 	}
 }
+
+// TestUsageDimensionSiliconFlowFields 验证 SiliconFlow 余额信息字段可赋值/读取，零值默认。
+// 注意：provider_usage_test.go 为 package domain（内部测试），直接用 UsageDimension，无 domain. 前缀。
+func TestUsageDimensionSiliconFlowFields(t *testing.T) {
+	d := UsageDimension{
+		Name: "Available balance", Balance: 0.88, Currency: "CNY",
+		ChargeBalance: 88.0, TotalBalance: 88.88,
+	}
+	if d.ChargeBalance != 88.0 {
+		t.Errorf("ChargeBalance = %v, want 88.0", d.ChargeBalance)
+	}
+	if d.TotalBalance != 88.88 {
+		t.Errorf("TotalBalance = %v, want 88.88", d.TotalBalance)
+	}
+	// 零值默认：未填时为 0（UI 据此跳过渲染）
+	zero := UsageDimension{}
+	if zero.ChargeBalance != 0 || zero.TotalBalance != 0 {
+		t.Errorf("zero-value fields should be 0, got charge=%v total=%v", zero.ChargeBalance, zero.TotalBalance)
+	}
+}

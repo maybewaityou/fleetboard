@@ -221,6 +221,14 @@ func renderDimension(dim domain.UsageDimension) string {
 			fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n",
 				colorSecondary, "Topped up:", colorPrimary, formatMoney(dim.ToppedUp, dim.Currency))
 		}
+		if dim.ChargeBalance != 0 {
+			fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n",
+				colorSecondary, "Charged:", colorPrimary, formatMoney(dim.ChargeBalance, dim.Currency))
+		}
+		if dim.TotalBalance != 0 {
+			fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n",
+				colorSecondary, "Total:", colorPrimary, formatMoney(dim.TotalBalance, dim.Currency))
+		}
 		b.WriteString("\n")
 		return b.String()
 	}
