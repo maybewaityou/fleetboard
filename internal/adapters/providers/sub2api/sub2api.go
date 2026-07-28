@@ -101,7 +101,7 @@ type subscriptionResp struct {
 type usageResp struct {
 	Today             usageBucket `json:"today"`
 	Total             usageBucket `json:"total"`
-	AverageDurationMs int64       `json:"average_duration_ms"`
+	AverageDurationMs float64     `json:"average_duration_ms"` // 真实是浮点均值（带小数），按 float 解码再截断为 int64 ms
 	Rpm               int         `json:"rpm"`
 	Tpm               int         `json:"tpm"`
 }
@@ -224,7 +224,7 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 			TotalRequests: r.Usage.Total.Requests,
 			RPM:           r.Usage.Rpm,
 			TPM:           r.Usage.Tpm,
-			AvgDurationMs: r.Usage.AverageDurationMs,
+			AvgDurationMs: int64(r.Usage.AverageDurationMs),
 			Currency:      usd,
 		}
 	}
