@@ -25,6 +25,7 @@ type Config struct {
 type RefreshConfig struct {
 	OnStart  bool   `yaml:"on_start"`
 	Interval string `yaml:"interval"` // "5m"
+	Timeout  string `yaml:"timeout"`  // "15s"；空/非法→默认 15s（aggregator per-account 兜底超时）
 }
 
 // UIConfig 控制 TUI 表现层。

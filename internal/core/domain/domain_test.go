@@ -14,7 +14,11 @@
 
 package domain
 
-import "testing"
+import (
+	"testing"
+
+	"gopkg.in/yaml.v3"
+)
 
 func TestSelectPrimaryPicksMaxPercent(t *testing.T) {
 	u := &ProviderUsage{Dimensions: []UsageDimension{
@@ -68,5 +72,23 @@ func TestAccountNewFields(t *testing.T) {
 	}
 	if acc.AccessTokenEnv != "NEWAPI_AT" || acc.UserID != "16002" {
 		t.Fatalf("new credential fields not set: %+v", acc)
+	}
+}
+
+// TestRefreshConfigTimeoutYAML 验证 RefreshConfig.Timeout 的 yaml 解析与零值默认。
+func TestRefreshConfigTimeoutYAML(t *testing.T) {
+	var cfg struct {
+		Refresh RefreshConfig `yaml:"refresh"`
+	}
+	if err := yaml.Unmarshal([]byte("refresh:\n  timeout: 15s\n"), &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if cfg.Refresh.Timeout != "15s" {
+		t.Errorf("Refresh.Timeout = %q, want 15s", cfg.Refresh.Timeout)
+	}
+	// 零值：未配置时为空字符串（main 据此回退默认 15s）。
+	var zero RefreshConfig
+	if zero.Timeout != "" {
+		t.Errorf("zero-value Timeout should be empty, got %q", zero.Timeout)
 	}
 }

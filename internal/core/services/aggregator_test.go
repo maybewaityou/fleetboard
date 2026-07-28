@@ -305,3 +305,130 @@ func (s *stubLookup) Get(provider string) (ports.UsageProvider, bool) {
 	}
 	return nil, false
 }
+
+// --- per-account timeout (Task 2) ----------------------------------------
+
+// slowProvider 是超时测试专用 stub：FetchUsage 阻塞到 ctx 被取消/超时，
+// 然后返回 ctx.Err。不放入 mock.go（mock 不模拟阻塞）。
+type slowProvider struct {
+	name string
+}
+
+func (s *slowProvider) Provider() string { return s.name }
+
+func (s *slowProvider) FetchUsage(ctx context.Context, acc domain.Account) (domain.ProviderUsage, error) {
+	<-ctx.Done()
+	return domain.ProviderUsage{
+		AccountID: acc.ID,
+		Provider:  s.name,
+		Label:     acc.Label,
+		FetchedAt: time.Now(),
+	}, ctx.Err()
+}
+
+// TestWithTimeoutBuilder 验证 WithTimeout 设置字段；未调用时为 DefaultFetchTimeout。
+func TestWithTimeoutBuilder(t *testing.T) {
+	reg := providers.NewRegistry(mock.New("glm", nil, nil))
+	def := NewAggregator(reg)
+	if def.timeout != DefaultFetchTimeout {
+		t.Fatalf("default timeout = %v, want %v", def.timeout, DefaultFetchTimeout)
+	}
+	custom := NewAggregator(reg).WithTimeout(7 * time.Second)
+	if custom.timeout != 7*time.Second {
+		t.Fatalf("WithTimeout(7s) = %v, want 7s", custom.timeout)
+	}
+	zero := NewAggregator(reg).WithTimeout(0)
+	if zero.timeout != 0 {
+		t.Fatalf("WithTimeout(0) = %v, want 0 (unlimited)", zero.timeout)
+	}
+}
+
+// TestFetchOneTimeout 验证 per-account 超时截断慢 provider 并回填 DeadlineExceeded。
+func TestFetchOneTimeout(t *testing.T) {
+	reg := providers.NewRegistry(&slowProvider{name: "slow"})
+	agg := NewAggregator(reg).WithTimeout(50 * time.Millisecond)
+	acc := domain.Account{ID: "s1", Provider: "slow", Label: "slow"}
+
+	start := time.Now()
+	u := agg.FetchOne(context.Background(), acc)
+	elapsed := time.Since(start)
+
+	if elapsed < 40*time.Millisecond || elapsed > 500*time.Millisecond {
+		t.Fatalf("elapsed = %v, want ~50ms (tolerance 40ms~500ms)", elapsed)
+	}
+	if u.Err == nil {
+		t.Fatal("expected timeout err, got nil")
+	}
+	if !errors.Is(u.Err, context.DeadlineExceeded) {
+		t.Fatalf("u.Err = %v, want wraps context.DeadlineExceeded", u.Err)
+	}
+	// 账号元信息仍回填（UI 标红但展示账号）。
+	if u.AccountID != "s1" || u.Provider != "slow" {
+		t.Errorf("meta not backfilled: %+v", u)
+	}
+}
+
+// TestFetchOneNoTimeout 验证 WithTimeout(0) 不限超时：slowProvider 收到的 ctx 无 deadline。
+// 用外部 cancel 主动退出，避免测试自身卡住。
+func TestFetchOneNoTimeout(t *testing.T) {
+	reg := providers.NewRegistry(&slowProvider{name: "slow"})
+	agg := NewAggregator(reg).WithTimeout(0)
+	acc := domain.Account{ID: "s2", Provider: "slow", Label: "slow"}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan domain.ProviderUsage, 1)
+	go func() { done <- agg.FetchOne(ctx, acc) }()
+
+	// 给一点时间确认 FetchUsage 确实进入阻塞（未被立即超时截断）。
+	select {
+	case u := <-done:
+		t.Fatalf("FetchOne returned early without external cancel: %+v", u)
+	case <-time.After(30 * time.Millisecond):
+		// 预期：还在阻塞 → 说明无 deadline 截断。
+	}
+
+	cancel() // 主动退出
+	select {
+	case u := <-done:
+		if u.Err == nil {
+			t.Error("expected err after cancel, got nil")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("FetchOne did not return within 1s after cancel")
+	}
+}
+
+// TestFetchAllTimeoutDoesNotBlockOthers 验证慢账号超时不阻塞快账号。
+func TestFetchAllTimeoutDoesNotBlockOthers(t *testing.T) {
+	reg := providers.NewRegistry(
+		&slowProvider{name: "slow"},
+		mock.New("fast", []domain.UsageDimension{{Name: "5h", PercentUsed: 30}}, nil),
+	)
+	agg := NewAggregator(reg).WithTimeout(50 * time.Millisecond)
+	accs := []domain.Account{
+		{ID: "slow-1", Provider: "slow", Label: "Slow"},
+		{ID: "fast-1", Provider: "fast", Label: "Fast"},
+	}
+
+	start := time.Now()
+	got := agg.FetchAll(context.Background(), accs)
+	elapsed := time.Since(start)
+
+	// FetchAll 总耗时 ≈ 最慢账号（slow ~50ms），不是它们的和。
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("FetchAll elapsed = %v, want < 500ms (slow must not serialize behind... itself)", elapsed)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2", len(got))
+	}
+	// slow 超时带 err；fast 立即返回无 err。
+	if got[0].Err == nil || !errors.Is(got[0].Err, context.DeadlineExceeded) {
+		t.Errorf("slow result err = %v, want DeadlineExceeded", got[0].Err)
+	}
+	if got[1].Err != nil {
+		t.Errorf("fast result should be clean, got %v", got[1].Err)
+	}
+	if got[1].Primary == nil || got[1].Primary.Name != "5h" {
+		t.Errorf("fast Primary missing: %+v", got[1].Primary)
+	}
+}
