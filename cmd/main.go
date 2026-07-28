@@ -33,6 +33,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -124,6 +125,15 @@ func run(sugar *zap.SugaredLogger) error {
 	// depends only on ports.ProviderLookup, which *providers.Registry satisfies.
 	reg := providers.NewRegistry(glm.New(), minimax.New(), kimi.New(), deepseek.New(), sub2api.New(), newapi.New(), siliconflow.New())
 	agg := services.NewAggregator(reg)
+	// per-account 兜底超时：从 config.refresh.timeout 解析；空/非法→默认 15s。
+	// 时序契约：必须 > adapter 的 http.Client.Timeout(10s)。刷新超时非致命，非法值静默回退默认。
+	fetchTimeout := services.DefaultFetchTimeout
+	if cfg.Refresh.Timeout != "" {
+		if d, err := time.ParseDuration(cfg.Refresh.Timeout); err == nil && d > 0 {
+			fetchTimeout = d
+		}
+	}
+	agg.WithTimeout(fetchTimeout)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
