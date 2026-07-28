@@ -80,9 +80,19 @@ func (d *AccountDetails) Render(u domain.ProviderUsage) {
 	// 字段顺序参考 lazytmux：主体标识在前，时间次之，Pinned（布尔状态）置末。
 	b.WriteString(basicInfoLine("Plan", plan))
 	b.WriteString(providerInfoLine(u.Provider))
+	if u.APIKeyStatus != "" {
+		b.WriteString(basicInfoLine("API Key", u.APIKeyStatus))
+	}
 	b.WriteString(basicInfoLine("BaseURL", firstNonEmpty(u.BaseURL, "—")))
 	b.WriteString(basicInfoLine("Endpoint", firstNonEmpty(u.Endpoint, "—")))
 	b.WriteString(basicInfoLine("Refreshed", refreshed))
+	if u.ExpiresAt != nil {
+		exp := u.ExpiresAt.Local().Format("2006-01-02")
+		if u.DaysUntilExpiry != 0 {
+			exp += fmt.Sprintf(" (%dd left)", u.DaysUntilExpiry)
+		}
+		b.WriteString(basicInfoLine("Expires", exp))
+	}
 	b.WriteString(basicInfoLine("Pinned", pinnedStr(u.Pinned)))
 
 	// Quota Dimensions：短期额度优先——按 ResetsAt 升序稳定排序（零值置后），
@@ -137,7 +147,7 @@ func providerInfoLine(provider string) string {
 	if v == "" {
 		v = "—"
 	}
-	return fmt.Sprintf("  [%s]%-10s[-]  [black:%s::b] %s [-:-:-]\n", colorSecondary, "Provider:", colorAccent, v)
+	return fmt.Sprintf("  [%s]%-10s[-]  [black:%s:b] %s [-:-:-]\n", colorSecondary, "Provider:", colorAccent, v)
 }
 
 // RenderEmpty swaps the pane for a centered placeholder when nothing is
@@ -163,6 +173,27 @@ func renderDimension(dim domain.UsageDimension) string {
 
 	// 维度名：独立一行，加粗主色。
 	fmt.Fprintf(&b, "  [%s::b]%s[-]\n", colorPrimary, name)
+
+	// 金额配额型（sub2api rate_limits / 订阅周期）：显示 $used/$limit + 进度条 + 重置。
+	// 必须在余额分支之前——金额配额维度也带 Currency="USD"，否则会被余额分支吞掉。
+	if dim.MoneyLimit > 0 {
+		pct := dim.PercentUsed
+		bar := renderBar(pct, barWidth)
+		pctStr := "N/A"
+		if pct >= 0 {
+			pctStr = fmt.Sprintf("%d%%", int(pct))
+		}
+		fmt.Fprintf(&b, "    %s  [%s]%s[-]\n", bar, colorPrimary, pctStr)
+		fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s / %s[-]\n",
+			colorSecondary, "Used:", colorPrimary,
+			formatMoney(dim.MoneyUsed, dim.Currency), formatMoney(dim.MoneyLimit, dim.Currency))
+		if !dim.ResetsAt.IsZero() {
+			fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n",
+				colorSecondary, "Resets:", colorPrimary, dim.ResetsAt.Local().Format("2006-01-02 15:04"))
+		}
+		b.WriteString("\n")
+		return b.String()
+	}
 
 	// 余额型：只显示 Balance 行，不画进度条（余额无进度语义）。
 	if dim.Currency != "" {
@@ -314,19 +345,32 @@ func formatMoney(balance float64, currency string) string {
 	return fmt.Sprintf("%s%.2f", sym, balance)
 }
 
-// renderRecent 渲染近窗口消耗摘要区块：
-//
-//	Usage (recent)
-//	  7-day:        $51.20
-//	  30-day:       $138.56
-//	  Live:         3 rpm / 1200 tpm
-//
-// 复用 basicInfoLine（pad10 对齐）与 formatMoney（带货币符号），风格与 Basic Info 一致。
+// renderRecent 渲染近窗口消耗摘要区块，按字段分组、非零才显示对应行（避免 sub2api 的 7d/30d
+// 零值显示 $0.00；newapi 填 7d/30d 时仍显示）。Live（RPM/TPM）始终显示。
 func renderRecent(r domain.RecentUsage) string {
 	var b strings.Builder
 	b.WriteString("\n[" + colorTitle + "::b]Usage (recent)[-]\n")
-	b.WriteString(basicInfoLine("7-day", formatMoney(r.Window7d, r.Currency)))
-	b.WriteString(basicInfoLine("30-day", formatMoney(r.Window30d, r.Currency)))
+	// 窗口组（newapi 等余额型 relay）。
+	if r.Window7d != 0 {
+		b.WriteString(basicInfoLine("7-day", formatMoney(r.Window7d, r.Currency)))
+	}
+	if r.Window30d != 0 {
+		b.WriteString(basicInfoLine("30-day", formatMoney(r.Window30d, r.Currency)))
+	}
+	// 今日/累计组（sub2api usage.today/total）。
+	if r.TodayCost != 0 || r.TodayTokens != 0 {
+		b.WriteString(basicInfoLine("Today", fmt.Sprintf("%s · %s tok · %d req",
+			formatMoney(r.TodayCost, r.Currency), compactInt(r.TodayTokens, ""), r.TodayRequests)))
+	}
+	if r.TotalCost != 0 || r.TotalTokens != 0 {
+		b.WriteString(basicInfoLine("Total", fmt.Sprintf("%s · %s tok",
+			formatMoney(r.TotalCost, r.Currency), compactInt(r.TotalTokens, ""))))
+	}
+	// 实时速率（始终）。
 	b.WriteString(basicInfoLine("Live", fmt.Sprintf("%d rpm / %d tpm", r.RPM, r.TPM)))
+	// 平均耗时。
+	if r.AvgDurationMs != 0 {
+		b.WriteString(basicInfoLine("Avg", fmt.Sprintf("%dms", r.AvgDurationMs)))
+	}
 	return b.String()
 }

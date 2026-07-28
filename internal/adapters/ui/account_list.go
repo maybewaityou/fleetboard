@@ -212,7 +212,7 @@ func formatAccountLine(u domain.ProviderUsage) string {
 	// 对齐要点：① provider pad 到 9 覆盖最长 slug "anthropic"，否则 anthropic/deepseek 行整条右半部右移；
 	//          ② pctStr 紧贴 miniBar 左对齐（padDisplay 到 7）：数值与进度条语义连贯（都是用量），
 	//            同时列宽固定 7 → 右边界不变 → 紧跟的状态点 ● 仍落在同一列；miniBar(4) 本身定宽。
-	return fmt.Sprintf("%s [%s]%s[-] %s [black:%s::b] %s [-:-:-]  %s [%s]%s[-] [%s]%s[-]    [%s]Last Refreshed: %s[-]",
+	return fmt.Sprintf("%s [%s]%s[-] %s [black:%s:b] %s [-:-:-]  %s [%s]%s[-] [%s]%s[-]    [%s]Last Refreshed: %s[-]",
 		pin,
 		iconFg, icon,
 		padDisplay(label, 16),
@@ -223,20 +223,20 @@ func formatAccountLine(u domain.ProviderUsage) string {
 		colorSecondary, fetched)
 }
 
-// formatMoneyShort 余额短格式（列表用，1 位小数，>1000 缩写 k）。负值把负号置于符号之前
-// （-¥50.0 而非 ¥-50.0），spec §3 容许负余额场景。
+// formatMoneyShort 余额短格式（列表用，2 位小数，>1000 缩写 k）。负值把负号置于符号之前
+// （-¥50.00 而非 ¥-50.00），spec §3 容许负余额场景。
 func formatMoneyShort(balance float64, currency string) string {
 	sym := currencySymbol(currency)
 	if balance < 0 {
 		if math.Abs(balance) >= 1000 {
-			return "-" + sym + fmt.Sprintf("%.1fk", -balance/1000)
+			return "-" + sym + fmt.Sprintf("%.2fk", -balance/1000)
 		}
-		return "-" + sym + fmt.Sprintf("%.1f", -balance)
+		return "-" + sym + fmt.Sprintf("%.2f", -balance)
 	}
 	if math.Abs(balance) >= 1000 {
-		return fmt.Sprintf("%s%.1fk", sym, balance/1000)
+		return fmt.Sprintf("%s%.2fk", sym, balance/1000)
 	}
-	return fmt.Sprintf("%s%.1f", sym, balance)
+	return fmt.Sprintf("%s%.2f", sym, balance)
 }
 
 // humanizeAgo 把时间渲染为相对时长（"5m ago"/"3h ago"/"2d ago"），零值→"—"。
