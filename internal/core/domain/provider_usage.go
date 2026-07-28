@@ -54,10 +54,10 @@ type ProviderUsage struct {
 	ExpiresAt       *time.Time
 	DaysUntilExpiry int
 
-		// 账号可用状态（adapter 填充，UI 读取）。DeepSeek 由 is_available 映射：
-		// true→"active"，false→"insufficient"。其他 provider 零值=无，UI 不渲染。
-		// 与 APIKeyStatus（sub2api 的 key active/expired）语义不同，故独立成字段。
-		Status string
+	// 账号可用状态（adapter 填充，UI 读取）。DeepSeek 由 is_available 映射：
+	// true→"active"，false→"insufficient"。其他 provider 零值=无，UI 不渲染。
+	// 与 APIKeyStatus（sub2api 的 key active/expired）语义不同，故独立成字段。
+	Status string
 }
 
 // RecentUsage 是近窗口消耗摘要（余额型 provider 的补充信息）。
@@ -96,11 +96,11 @@ type UsageDimension struct {
 	Balance  float64
 	Currency string
 
-		// 余额细分（余额型 provider 可选）：Granted=赠送/赠券部分，ToppedUp=充值/现金部分。
-		// DeepSeek 填 granted_balance/topped_up_balance；Kimi 填 voucher_balance/cash_balance。
-		// 配额型与其他余额型 provider 零值=无，UI 不渲染。语义约定 Granted+ToppedUp==Balance。
-		Granted  float64
-		ToppedUp float64
+	// 余额细分（余额型 provider 可选）：Granted=赠送/赠券部分，ToppedUp=充值/现金部分。
+	// DeepSeek 填 granted_balance/topped_up_balance；Kimi 填 voucher_balance/cash_balance。
+	// 配额型与其他余额型 provider 零值=无，UI 不渲染。语义约定 Granted+ToppedUp==Balance。
+	Granted  float64
+	ToppedUp float64
 
 	// 金额型配额窗口（USD）：sub2api 的 rate_limits 与订阅日/周/月限额。非零时 renderDimension
 	// 走金额配额分支（显示 $used/$limit + 进度条）；token 型 provider 不填，零值跳过。
