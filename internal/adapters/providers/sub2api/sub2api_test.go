@@ -36,7 +36,7 @@ const goldenQuota = `{
     {"window":"1d","limit":50,"used":12,"remaining":38,"reset_at":"2026-07-28T00:00:00Z"}
   ],
   "expires_at":"2026-12-31T00:00:00Z","days_until_expiry":156,
-  "usage":{"today":{"requests":10,"total_tokens":3050,"cost":1.5},"total":{"requests":100,"total_tokens":30000,"cost":15.0},"average_duration_ms":2500,"rpm":5,"tpm":1500}
+  "usage":{"today":{"requests":10,"total_tokens":3050,"cost":1.5},"total":{"requests":100,"total_tokens":30000,"cost":15.0},"average_duration_ms":9532.5869,"rpm":5,"tpm":1500}
 }`
 
 const goldenSubscription = `{
@@ -109,6 +109,10 @@ func TestFetchUsage_QuotaMode(t *testing.T) {
 	}
 	if u.Recent == nil || u.Recent.TodayCost != 1.5 || u.Recent.TotalTokens != 30000 || u.Recent.RPM != 5 {
 		t.Errorf("Recent wrong: %+v", u.Recent)
+	}
+	// average_duration_ms 真实是浮点均值（如 9532.5869），适配器须按 float 解码再截断为 int64 ms。
+	if u.Recent.AvgDurationMs != 9532 {
+		t.Errorf("AvgDurationMs = %d, want 9532 (float 9532.5869 → int64)", u.Recent.AvgDurationMs)
 	}
 	if u.APIKeyStatus != "active" || u.DaysUntilExpiry != 156 || u.ExpiresAt == nil {
 		t.Errorf("status/expiry wrong: %+v", u)
