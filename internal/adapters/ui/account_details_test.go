@@ -328,3 +328,41 @@ func TestRenderDimensionUnlimited(t *testing.T) {
 		t.Errorf("unlimited dim should still show Resets, got: %q", got)
 	}
 }
+
+// TestCapitalizeFirstASCII 验证 Plan 展示值的英文首字母大写：ASCII 小写开头转大写，
+// 已大写/符号/中文/空串原样返回（UTF-8 多字节首字节 ≥0xC2 天然不落入 'a'..'z'）。
+func TestCapitalizeFirstASCII(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"pro", "Pro"}, // GLM data.level 实际值
+		{"max", "Max"},
+		{"Pro", "Pro"},     // 已大写，不变
+		{"—", "—"},         // fallback 符号，不变
+		{"专业版", "专业版"},     // 中文，不变
+		{"", ""},           // 空串
+		{"ab cd", "Ab cd"}, // 仅首字母大写，不逐词 Title
+	}
+	for _, c := range cases {
+		if got := capitalizeFirstASCII(c.in); got != c.want {
+			t.Errorf("capitalizeFirstASCII(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestRenderCapitalizesPlan 验证详情页 Plan 行对英文值首字母大写：GLM 的 "pro" 渲染为 "Pro"。
+func TestRenderCapitalizesPlan(t *testing.T) {
+	d := NewAccountDetails()
+	u := domain.ProviderUsage{
+		Provider:   "glm",
+		Label:      "GLM",
+		PlanLevel:  "pro",
+		Dimensions: []domain.UsageDimension{{Name: "5h Quota", PercentUsed: 10}},
+	}
+	d.Render(u)
+	got := d.GetText(true)
+	if !strings.Contains(got, "Pro") {
+		t.Errorf("Plan 'pro' should render capitalized as 'Pro', got: %q", got)
+	}
+	if strings.Contains(got, ": pro") {
+		t.Errorf("Plan should not render lowercase ': pro', got: %q", got)
+	}
+}

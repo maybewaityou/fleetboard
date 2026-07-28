@@ -72,7 +72,7 @@ func (d *AccountDetails) Render(u domain.ProviderUsage) {
 
 	// Basic Info：账号基本信息（adapter 填充）。Plan 优先 PlanLevel(GLM)，否则 Model(MiniMax)。
 	b.WriteString("[" + colorTitle + "::b]Basic Info[-]\n")
-	plan := firstNonEmpty(u.PlanLevel, u.Model, "—")
+	plan := capitalizeFirstASCII(firstNonEmpty(u.PlanLevel, u.Model, "—"))
 	refreshed := "—"
 	if !u.FetchedAt.IsZero() {
 		refreshed = u.FetchedAt.Local().Format("2006-01-02 15:04")
@@ -147,6 +147,17 @@ func firstNonEmpty(s ...string) string {
 		}
 	}
 	return ""
+}
+
+// capitalizeFirstASCII 仅在字符串首字符为 ASCII 小写字母时将其大写，其余一律原样返回。
+// 用于 Plan 等展示字段：英文值（如 GLM 的 "pro"）首字母大写更美观，而中文/符号
+// （如 "—"、"专业版"）不受影响——得益于 UTF-8 编码，任何多字节字符的首字节恒 ≥ 0xC2，
+// 绝不会落入 'a'..'z' 区间，因此按字节判断即可安全区分，无需解码 rune。
+func capitalizeFirstASCII(s string) string {
+	if s == "" || s[0] < 'a' || s[0] > 'z' {
+		return s
+	}
+	return string(s[0]-'a'+'A') + s[1:]
 }
 
 // basicInfoLine 渲染 "  key(pad10): value\n"（键 secondary 色，冒号 pad 对齐；值 primary 色）。
