@@ -188,6 +188,19 @@ func renderDimension(dim domain.UsageDimension) string {
 	// 维度名：独立一行，加粗主色。
 	fmt.Fprintf(&b, "  [%s::b]%s[-]\n", colorPrimary, name)
 
+	// 无限制窗口（MiniMax *_status=3）：∞ 无配额上限。画绿色满条（充裕/无限，区别于 N/A 灰条），
+	// 百分比位置显示 "∞ unlimited"；不显示 used/limit（无上限）。ResetsAt 仍保留（窗口仍会滚动）。
+	if dim.Unlimited {
+		bar := "[" + colorGreen + "]" + strings.Repeat("▓", barWidth) + "[-]"
+		fmt.Fprintf(&b, "    %s  [%s]∞ unlimited[-]\n", bar, colorGreen)
+		if !dim.ResetsAt.IsZero() {
+			fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n",
+				colorSecondary, "Resets:", colorPrimary, dim.ResetsAt.Local().Format("2006-01-02 15:04"))
+		}
+		b.WriteString("\n")
+		return b.String()
+	}
+
 	// 金额配额型（sub2api rate_limits / 订阅周期）：显示 $used/$limit + 进度条 + 重置。
 	// 必须在余额分支之前——金额配额维度也带 Currency="USD"，否则会被余额分支吞掉。
 	if dim.MoneyLimit > 0 {

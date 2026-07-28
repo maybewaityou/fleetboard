@@ -25,11 +25,13 @@ import (
 	"github.com/maybewaityou/fleetboard/internal/core/domain"
 )
 
-// goldenPayload 是 MiniMax token_plan/remains 接口的固定金样本：
-//   - usagePercent = 12（已用 12%，直接用不反转）
-//   - model_remains[0].end_time = 1711929600000（2024-04-01 00:00:00 UTC，毫秒）→ ResetsAt
-//   - start_time = 1711843200000（2024-03-31 00:00:00 UTC，毫秒）
-const goldenPayload = `{"usagePercent":12,"model_remains":[{"model":"abab6","start_time":1711843200000,"end_time":1711929600000}]}`
+// goldenPayload 是官网 remains_percent 接口的固定金样本（基于真实响应精简）：
+//   - general 档：5h 窗口 current_interval_used_percent="9%" / status=1（有限），
+//     周窗口 current_weekly_used_percent="0%" / status=3（∞ 无限制）。
+//   - end_time=1711929600000（2024-04-01 00:00:00 UTC，毫秒）→ 5h ResetsAt；
+//     weekly_end_time=1712448000000（2024-04-07 00:00:00 UTC，毫秒）→ weekly ResetsAt。
+//   - base_resp.status_code=0（成功）。
+const goldenPayload = `{"model_remains":[{"model_name":"general","start_time":1711843200000,"end_time":1711929600000,"current_interval_used_percent":"9%","current_interval_status":1,"weekly_start_time":1711843200000,"weekly_end_time":1712448000000,"current_weekly_used_percent":"0%","current_weekly_status":3}],"base_resp":{"status_code":0,"status_msg":"success"}}`
 
 func TestProviderReturnsMiniMax(t *testing.T) {
 	if got := New().Provider(); got != "minimax" {
@@ -37,11 +39,13 @@ func TestProviderReturnsMiniMax(t *testing.T) {
 	}
 }
 
-// TestFetchUsageGolden 是核心 httptest 金测试，覆盖三个断言：
+// TestFetchUsageGolden 是核心 httptest 金测试，覆盖：
 //
-//	(a) Authorization 头是 "Bearer KEY123"（必须有 Bearer 前缀——区别于 GLM 裸 key）
-//	(b) PercentUsed == 12（usagePercent=12 是「已用」，直接用不反转）
-//	(c) ResetsAt 取自 end_time（Unix 毫秒 1711929600000 → 2024-04-01 00:00:00 UTC）
+//	(a) Authorization 头是 "Bearer KEY123"（必须有 Bearer 前缀）
+//	(b) 请求路径为 /backend/account/token_plan/remains_percent（真实接口）
+//	(c) 两个维度：5h(9%, 有限) + weekly(∞ 无限制)
+//	(d) Primary 指向 5h（weekly PercentUsed=-1 被 SelectPrimary 跳过）
+//	(e) Model 取自 model_name="general"
 func TestFetchUsageGolden(t *testing.T) {
 	var gotAuth, gotCT, gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,97 +64,104 @@ func TestFetchUsageGolden(t *testing.T) {
 		t.Fatalf("unexpected err: %v", err)
 	}
 
-	// (a) 鉴权头必须有 "Bearer " 前缀（MiniMax 该接口最易错点）
+	// (a)/(b) 鉴权头 + 真实路径。
 	if gotAuth != "Bearer KEY123" {
 		t.Errorf("Authorization = %q, want %q (MUST have Bearer prefix)", gotAuth, "Bearer KEY123")
 	}
 	if gotCT != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", gotCT)
 	}
-	if gotPath != "/v1/token_plan/remains" {
-		t.Errorf("request path = %q, want /v1/token_plan/remains", gotPath)
+	if gotPath != "/backend/account/token_plan/remains_percent" {
+		t.Errorf("request path = %q, want /backend/account/token_plan/remains_percent", gotPath)
 	}
 
-	// (b) 单一维度
-	if len(u.Dimensions) != 1 {
-		t.Fatalf("len(Dimensions) = %d, want 1; dims=%+v", len(u.Dimensions), u.Dimensions)
+	// (c) 两个维度。
+	if len(u.Dimensions) != 2 {
+		t.Fatalf("len(Dimensions) = %d, want 2; dims=%+v", len(u.Dimensions), u.Dimensions)
 	}
-	d := u.Dimensions[0]
-	if d.Name != "Token Plan" {
-		t.Errorf("dim.Name = %q, want Token Plan", d.Name)
+	d5h, dWeekly := u.Dimensions[0], u.Dimensions[1]
+
+	// 5h 窗口：有限额，9%。
+	if d5h.Name != "5h Quota" {
+		t.Errorf("5h.Name = %q, want 5h Quota", d5h.Name)
 	}
-	// 不反转：usagePercent=12 即已用 12%
-	if d.PercentUsed != 12 {
-		t.Errorf("dim.PercentUsed = %v, want 12 (usagePercent is USED, not inverted)", d.PercentUsed)
+	if d5h.Order != 1 {
+		t.Errorf("5h.Order = %v, want 1", d5h.Order)
 	}
-	if d.Unit != "%" {
-		t.Errorf("dim.Unit = %q, want %%", d.Unit)
+	if d5h.PercentUsed != 9 {
+		t.Errorf("5h.PercentUsed = %v, want 9", d5h.PercentUsed)
 	}
-	if d.Source != "api-balanced" {
-		t.Errorf("dim.Source = %q, want api-balanced", d.Source)
+	if d5h.Unlimited {
+		t.Errorf("5h.Unlimited = true, want false (status=1 = 有限)")
+	}
+	wantReset5h := time.UnixMilli(1711929600000).UTC()
+	if !d5h.ResetsAt.Equal(wantReset5h) {
+		t.Errorf("5h.ResetsAt = %v, want %v", d5h.ResetsAt, wantReset5h)
 	}
 
-	// (c) ResetsAt 来自 end_time（Unix 毫秒 1711929600000 → 2024-04-01 00:00:00 UTC）
-	wantReset := time.UnixMilli(1711929600000).UTC()
-	if !d.ResetsAt.Equal(wantReset) {
-		t.Errorf("dim.ResetsAt = %v, want %v", d.ResetsAt, wantReset)
+	// 周窗口：无限制（status=3）→ Unlimited + PercentUsed=-1。
+	if dWeekly.Name != "Weekly Quota" {
+		t.Errorf("weekly.Name = %q, want Weekly Quota", dWeekly.Name)
+	}
+	if dWeekly.Order != 2 {
+		t.Errorf("weekly.Order = %v, want 2", dWeekly.Order)
+	}
+	if !dWeekly.Unlimited {
+		t.Errorf("weekly.Unlimited = false, want true (status=3 = ∞ 无限制)")
+	}
+	if dWeekly.PercentUsed != -1 {
+		t.Errorf("weekly.PercentUsed = %v, want -1 (unlimited → N/A, NOT the literal \"0%%\")", dWeekly.PercentUsed)
+	}
+	wantResetWeekly := time.UnixMilli(1712448000000).UTC()
+	if !dWeekly.ResetsAt.Equal(wantResetWeekly) {
+		t.Errorf("weekly.ResetsAt = %v, want %v", dWeekly.ResetsAt, wantResetWeekly)
 	}
 
-	// Primary 指向唯一维度
-	if u.Primary == nil || u.Primary.Name != "Token Plan" {
-		t.Errorf("Primary = %+v, want Token Plan dim", u.Primary)
-	}
-	if u.Primary.PercentUsed != 12 {
-		t.Errorf("Primary.PercentUsed = %v, want 12", u.Primary.PercentUsed)
+	// (d) Primary 指向 5h（9%）—— weekly 被跳过。这是修复的核心：列表/详情不再显示 0%。
+	if u.Primary == nil || u.Primary.Name != "5h Quota" || u.Primary.PercentUsed != 9 {
+		t.Errorf("Primary = %+v, want 5h Quota @ 9%%", u.Primary)
 	}
 
-	// FetchedAt 与顶层账号字段
-	if u.FetchedAt.IsZero() {
-		t.Error("FetchedAt should be set to time.Now()")
+	// (e) Model 取自 model_name。
+	if u.Model != "general" {
+		t.Errorf("Model = %q, want general", u.Model)
 	}
-	if u.FetchedAt.After(time.Now()) {
-		t.Error("FetchedAt must not be in the future")
-	}
-	if u.AccountID != "m" || u.Provider != "minimax" || u.Label != "MiniMax" {
-		t.Errorf("ProviderUsage top fields wrong: %+v", u)
-	}
-	// Basic Info 字段（adapter 填充）
-	if u.Model != "abab6" {
-		t.Errorf("Model = %q, want abab6", u.Model)
-	}
-	if u.Endpoint != "/v1/token_plan/remains" {
-		t.Errorf("Endpoint = %q, want /v1/token_plan/remains", u.Endpoint)
+	if u.Endpoint != "/backend/account/token_plan/remains_percent" {
+		t.Errorf("Endpoint = %q, want remains_percent path", u.Endpoint)
 	}
 	if u.BaseURL != srv.URL {
 		t.Errorf("BaseURL = %q, want %s", u.BaseURL, srv.URL)
 	}
-}
-
-// TestFetchUsageSnakeCaseField 验证 usage_percent snake_case 变体同样被解析
-// （真实 API 存在两种字段名，实现必须兼容）。
-func TestFetchUsageSnakeCaseField(t *testing.T) {
-	payload := `{"usage_percent":25,"model_remains":[{"start_time":1711843200000,"end_time":1711929600000}]}`
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, payload)
-	}))
-	defer srv.Close()
-
-	t.Setenv("MINIMAX_TOKEN_PLAN_KEY", "K")
-	acc := domain.Account{ID: "m", Provider: "minimax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
-	u, err := New().FetchUsage(context.Background(), acc)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	// 不反转：usagePercent=25 即已用 25%
-	if u.Dimensions[0].PercentUsed != 25 {
-		t.Errorf("PercentUsed = %v, want 25 (usagePercent=25, not inverted)", u.Dimensions[0].PercentUsed)
+	if u.FetchedAt.IsZero() || u.FetchedAt.After(time.Now()) {
+		t.Errorf("FetchedAt wrong: %v", u.FetchedAt)
 	}
 }
 
-// TestFetchUsageEmptyRemains 验证 model_remains 为空时仍返回维度（ResetsAt 为零值，
-// UI 层会跳过零 ResetsAt）。
+// TestParsePercent 验证字符串百分比解析与降级。
+func TestParsePercent(t *testing.T) {
+	cases := []struct {
+		in   string
+		want float64
+	}{
+		{"9%", 9},
+		{"0%", 0},
+		{"100%", 100},
+		{" 17% ", 17}, // 含空白
+		{"", -1},      // 空 → N/A
+		{"abc", -1},   // 坏值 → N/A
+		{"%", -1},     // 仅百分号 → N/A
+	}
+	for _, c := range cases {
+		if got := parsePercent(c.in); got != c.want {
+			t.Errorf("parsePercent(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
+// TestFetchUsageEmptyRemains 验证 model_remains 为空时不 panic（len 守卫）、
+// 返回 0 维度且 Primary=nil。这是空数组越界的回归保护。
 func TestFetchUsageEmptyRemains(t *testing.T) {
-	payload := `{"usagePercent":50,"model_remains":[]}`
+	payload := `{"model_remains":[],"base_resp":{"status_code":0,"status_msg":"success"}}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, payload)
 	}))
@@ -160,21 +171,71 @@ func TestFetchUsageEmptyRemains(t *testing.T) {
 	acc := domain.Account{ID: "m", Provider: "minimax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
 	u, err := New().FetchUsage(context.Background(), acc)
 	if err != nil {
-		t.Fatalf("err: %v", err)
+		t.Fatalf("unexpected err on empty model_remains: %v", err)
 	}
-	if len(u.Dimensions) != 1 {
-		t.Fatalf("dims = %d, want 1", len(u.Dimensions))
+	if len(u.Dimensions) != 0 {
+		t.Errorf("Dimensions = %+v, want empty (no model_remains)", u.Dimensions)
 	}
-	if u.Dimensions[0].PercentUsed != 50 {
-		t.Errorf("PercentUsed = %v, want 50", u.Dimensions[0].PercentUsed)
+	if u.Primary != nil {
+		t.Errorf("Primary = %+v, want nil", u.Primary)
 	}
-	if !u.Dimensions[0].ResetsAt.IsZero() {
-		t.Errorf("ResetsAt should be zero for empty model_remains, got %v", u.Dimensions[0].ResetsAt)
+	if u.Model != "" {
+		t.Errorf("Model = %q, want empty", u.Model)
 	}
 }
 
-// TestFetchUsageServerDown 验证 HTTP 层错误被透传，且 ProviderUsage 仍填充账号字段
-// （与 GLM / mock provider 行为一致，便于上层展示局部信息）。
+// TestFetchUsageBusinessError 验证 HTTP 200 但 base_resp.status_code != 0 被业务码守卫拦截
+// （鉴权失败等可能返回 200 + 非 0 业务码）。
+func TestFetchUsageBusinessError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"model_remains":[],"base_resp":{"status_code":1004,"status_msg":"invalid api key"}}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINIMAX_TOKEN_PLAN_KEY", "BADKEY")
+	acc := domain.Account{ID: "m", Provider: "minimax", Label: "l", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err == nil {
+		t.Fatal("expected error for base_resp.status_code=1004, got nil")
+	}
+	if u.Err == nil {
+		t.Error("u.Err should be set on business error")
+	}
+	// 业务错误不能静默产出维度（否则会把空 model_remains 误当正常）。
+	if len(u.Dimensions) != 0 || u.Primary != nil {
+		t.Errorf("business error must not yield dimensions: %+v", u.Dimensions)
+	}
+}
+
+// TestFetchUsageAllUnlimited 验证两个窗口都无限制时 Primary=nil（SelectPrimary 全跳过），
+// 且两维度均 Unlimited。覆盖「全无限」退化场景，不崩溃。
+func TestFetchUsageAllUnlimited(t *testing.T) {
+	payload := `{"model_remains":[{"model_name":"general","end_time":1711929600000,"current_interval_used_percent":"0%","current_interval_status":3,"weekly_end_time":1712448000000,"current_weekly_used_percent":"0%","current_weekly_status":3}],"base_resp":{"status_code":0,"status_msg":"success"}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, payload)
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINIMAX_TOKEN_PLAN_KEY", "K")
+	acc := domain.Account{ID: "m", Provider: "minimax", TokenEnv: "MINIMAX_TOKEN_PLAN_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(u.Dimensions) != 2 {
+		t.Fatalf("Dimensions = %d, want 2", len(u.Dimensions))
+	}
+	for i, d := range u.Dimensions {
+		if !d.Unlimited || d.PercentUsed != -1 {
+			t.Errorf("dim[%d] = %+v, want Unlimited + PercentUsed=-1", i, d)
+		}
+	}
+	if u.Primary != nil {
+		t.Errorf("Primary = %+v, want nil when all windows unlimited", u.Primary)
+	}
+}
+
+// TestFetchUsageServerDown 验证 HTTP 传输错误被透传，且 ProviderUsage 仍填充账号字段。
 func TestFetchUsageServerDown(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, goldenPayload)
@@ -190,19 +251,17 @@ func TestFetchUsageServerDown(t *testing.T) {
 	if u.Err == nil {
 		t.Error("u.Err should be set on transport error")
 	}
-	// 错误路径下仍填充账号字段
 	if u.AccountID != "m" || u.Provider != "minimax" || u.Label != "l" {
 		t.Errorf("error-path ProviderUsage fields wrong: %+v", u)
 	}
 }
 
-// TestFetchUsageNon200 验证非 2xx HTTP 状态（如 401）被状态守卫拦截：
-// 即使 body 是合法 JSON 错误体（缺 usage_percent），也不会被静默解码成 PercentUsed==100。
-// MiniMax 鉴权失败典型响应：{"base_resp":{"status_code":1004,...}}。
+// TestFetchUsageNon200 验证非 2xx HTTP 状态（如 401）被状态守卫拦截，
+// 即使 body 是合法 JSON 错误体也不会被静默解码。
 func TestFetchUsageNon200(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, `{"base_resp":{"status_code":1004,"status_msg":"invalid api key"}}`)
+		fmt.Fprint(w, `{"model_remains":[],"base_resp":{"status_code":1004,"status_msg":"invalid api key"}}`)
 	}))
 	defer srv.Close()
 
@@ -215,17 +274,8 @@ func TestFetchUsageNon200(t *testing.T) {
 	if u.Err == nil {
 		t.Error("u.Err should be set on non-2xx status")
 	}
-	// 关键：不能静默把缺字段的错误体当成「100% 已耗尽」。
-	// Dimensions 应为空（解码从未发生），Primary 也应为 nil。
-	if len(u.Dimensions) != 0 {
-		t.Errorf("Dimensions should be empty on HTTP error, got %+v (would risk PercentUsed==100)", u.Dimensions)
-	}
-	if u.Primary != nil {
-		t.Errorf("Primary should be nil on HTTP error, got %+v", u.Primary)
-	}
-	// 错误路径下仍填充账号字段
-	if u.AccountID != "m" || u.Provider != "minimax" || u.Label != "l" {
-		t.Errorf("error-path ProviderUsage fields wrong: %+v", u)
+	if len(u.Dimensions) != 0 || u.Primary != nil {
+		t.Errorf("Dimensions/Primary should be empty on HTTP error: %+v", u.Dimensions)
 	}
 }
 

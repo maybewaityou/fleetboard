@@ -496,3 +496,30 @@ func TestFormatAccountLine_BalanceColorConfigurable(t *testing.T) {
 		t.Errorf("with balance>=100 threshold=red, 150 should render red dot: %q", got)
 	}
 }
+
+// TestFormatAccountLine_Unlimited 验证当选中维度为无限制窗口（MiniMax *_status=3）时，
+// 列表行兜底显示 ∞ + 绿点。仅当 5h 也无限制时 displayDimension 才会选中无限制维度
+// （常规情况 5h 有限→列表显示其百分比，weekly ∞ 只进详情页）。
+func TestFormatAccountLine_Unlimited(t *testing.T) {
+	fiveH := domain.UsageDimension{Name: "5h Quota", Order: 1, Unlimited: true, PercentUsed: -1}
+	weekly := domain.UsageDimension{Name: "Weekly Quota", Order: 2, Unlimited: true, PercentUsed: -1}
+	u := domain.ProviderUsage{
+		AccountID: "u1", Provider: "minimax", Label: "MiniMax-无限",
+		Dimensions: []domain.UsageDimension{fiveH, weekly},
+	}
+	got := formatAccountLine(u)
+	if !strings.Contains(got, "∞") {
+		t.Errorf("unlimited selected dim should render ∞, got: %q", got)
+	}
+	if !strings.Contains(got, "["+colorGreen+"]●[-]") {
+		t.Errorf("unlimited should render green solid dot, got: %q", got)
+	}
+	// 列表 miniBar：绿色满条（▓×4），与详情页一致，非 N/A 灰条（无 ░）。
+	if !strings.Contains(got, "["+colorGreen+"]▓▓▓▓") {
+		t.Errorf("unlimited miniBar should be green full bar, got: %q", got)
+	}
+	// 无限制有专门的 ∞ 标记，不应回退到 N/A。
+	if strings.Contains(got, "N/A") {
+		t.Errorf("unlimited should not show N/A: %q", got)
+	}
+}

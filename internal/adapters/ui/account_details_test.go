@@ -296,3 +296,35 @@ func TestRenderDimensionSiliconFlowZeroBreakdown(t *testing.T) {
 		t.Errorf("zero TotalBalance should not render Total line, got: %q", got)
 	}
 }
+
+// TestRenderDimensionUnlimited 验证无限制窗口（MiniMax *_status=3）渲染为绿色 ∞：
+// 不画进度条（无 ░/█）、不显示百分比/Used，但仍显示 Resets。
+func TestRenderDimensionUnlimited(t *testing.T) {
+	dim := domain.UsageDimension{
+		Name: "Weekly Quota", Unlimited: true, PercentUsed: -1,
+		ResetsAt: time.Date(2026, 7, 28, 5, 0, 0, 0, time.UTC),
+	}
+	got := renderDimension(dim)
+	if !strings.Contains(got, "Weekly Quota") {
+		t.Errorf("should contain dim name, got: %q", got)
+	}
+	if !strings.Contains(got, "∞ unlimited") {
+		t.Errorf("unlimited dim should render '∞ unlimited', got: %q", got)
+	}
+	if !strings.Contains(got, "["+colorGreen+"]") {
+		t.Errorf("unlimited should be green, got: %q", got)
+	}
+	// 绿色满条：含 ▓、无 ░ 空心格（与 N/A 灰条区分）。
+	if !strings.Contains(got, "▓") {
+		t.Errorf("unlimited dim should render green full bar (▓), got: %q", got)
+	}
+	if strings.Contains(got, "░") {
+		t.Errorf("unlimited full bar should have no hollow ░ cells, got: %q", got)
+	}
+	if strings.Contains(got, "Used:") {
+		t.Errorf("unlimited dim should NOT show Used line, got: %q", got)
+	}
+	if !strings.Contains(got, "Resets:") {
+		t.Errorf("unlimited dim should still show Resets, got: %q", got)
+	}
+}

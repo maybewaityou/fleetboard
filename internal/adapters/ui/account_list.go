@@ -195,6 +195,12 @@ func formatAccountLine(u domain.ProviderUsage) string {
 		pctStr = formatMoneyShort(d.Balance, d.Currency)
 		dot = "●"
 		dotCol = BalanceColor(d.Balance, d.Currency)
+	} else if d != nil && d.Unlimited {
+		// 无限制窗口（MiniMax *_status=3）：列表兜底显示 ∞ + 绿点。仅当 5h 也无限制时命中
+		// （displayDimension 按 Order 选，5h=1 优先；5h 有限时列表显示 5h 百分比，weekly ∞ 只进详情页）。
+		pctStr = "∞"
+		dot = "●"
+		dotCol = colorGreen
 	} else if d != nil {
 		// 配额型：百分比 + StatusColor
 		pctStr = fmt.Sprintf("%d%%", int(d.PercentUsed))
@@ -202,6 +208,11 @@ func formatAccountLine(u domain.ProviderUsage) string {
 		dotCol = StatusColor(d.PercentUsed)
 	}
 	pct := displayPercent(u) // 余额型 PercentUsed=-1 → renderBar(-1,4) 自然灰条
+	miniBar := renderBar(pct, 4)
+	if d != nil && d.Unlimited {
+		// 无限制窗口：列表 miniBar 画绿色满条（充裕/无限，与详情页一致），区别于 N/A 灰条。
+		miniBar = "[" + colorGreen + "]" + strings.Repeat("▓", 4) + "[-]"
+	}
 
 	// icon: provider 首字母大写, 品牌色（ProviderTag 的 fg）。
 	_, iconFg := ProviderTag(u.Provider)
@@ -234,7 +245,7 @@ func formatAccountLine(u domain.ProviderUsage) string {
 		iconFg, icon,
 		padDisplay(label, 16),
 		colorAccent, padDisplay(u.Provider, 9),
-		renderBar(pct, 4),
+		miniBar,
 		colorPrimary, padDisplay(pctStr, 7),
 		dotCol, dot,
 		colorSecondary, fetched)

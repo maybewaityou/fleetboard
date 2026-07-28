@@ -131,7 +131,7 @@ type UsageProvider interface {
 | adapter | 端点 / 来源 | 鉴权 | 备注 |
 |---------|------------|------|------|
 | `providers/glm` | 智谱 Coding Plan 用量接口 | API Key | 参考官方 `zai-coding-plugins/glm-plan-usage` 插件规格 |
-| `providers/minimax` | `GET https://api.minimaxi.com/v1/token_plan/remains` | 订阅 Key | 端点已由 openclaw 文档确认 |
+| `providers/minimax` | `GET https://www.minimaxi.com/backend/account/token_plan/remains_percent` | Bearer Key | 官网管理平台实测；model_remains[] 含 5h/周窗口百分比，*_status=3 为 ∞ 无限制 |
 | `providers/kimi` | 待确认（platform.kimi.com console） | API Key | 先留 stub，端点明确后补 |
 
 响应解析统一产出 `VendorUsage`；接口不返回上限时 `Limit=0`（百分比显示 N/A）。
@@ -148,7 +148,7 @@ accounts:
     vendor: minimax
     label: MiniMax Token Plan
     token_env: MINIMAX_API_KEY
-    base_url: https://api.minimaxi.com   # 可选，覆盖默认
+    base_url: https://www.minimaxi.com   # 可选，覆盖默认
 refresh:
   on_start: true
   interval: 5m                         # 后台自动刷新间隔（仅全部刷新）
