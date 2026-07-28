@@ -31,19 +31,33 @@ import (
 // 用 sentinel + %w 包装，使调用方可 errors.Is 判定，同时消息里携带具体 provider 名。
 var ErrUnknownProvider = errors.New("unknown provider: no usage provider registered")
 
+// DefaultFetchTimeout 是 per-account 拉取的默认兜底超时（main 装配 fallback 用）。
+// 必须 > 各 adapter 的 http.Client.Timeout（10s）——见 spec 时序契约：外层宽松于内层，
+// 否则内层 HTTP 超时失效、错误信息退化为笼统的 context.DeadlineExceeded。
+const DefaultFetchTimeout = 15 * time.Second
+
 // Aggregator 聚合多账号用量拉取：按账号的 Provider 字段分派到对应 adapter，
 // 并发执行且单点失败不连坐（错误只写回对应 ProviderUsage.Err，不 panic、不阻断其他账号）。
 //
 // 依赖 ports.ProviderLookup（而非具体 *providers.Registry），保持六边形依赖方向：
 // core/services → ports，不反向依赖 adapters/providers。
 type Aggregator struct {
-	lookup ports.ProviderLookup
+	lookup  ports.ProviderLookup
+	timeout time.Duration // per-account 兜底超时；0=不限。构造期经 WithTimeout 设置，之后并发只读。
 }
 
 // NewAggregator 构造一个依赖 ProviderLookup 的聚合器。
 // 通常传入 *providers.Registry——其 Get 方法实现了 ProviderLookup。
 func NewAggregator(lookup ports.ProviderLookup) *Aggregator {
-	return &Aggregator{lookup: lookup}
+	return &Aggregator{lookup: lookup, timeout: DefaultFetchTimeout}
+}
+
+// WithTimeout 设置 per-account 拉取兜底超时（builder，链式）。
+// main 从 config.refresh.timeout 解析后调用；0 表示不限超时。
+// 应在 FetchAll/FetchOne 调用前设置（构造期一次），之后并发只读 a.timeout。
+func (a *Aggregator) WithTimeout(d time.Duration) *Aggregator {
+	a.timeout = d
+	return a
 }
 
 // FetchOne 拉取单个账号的用量（Task 12 的 "r" 选中刷新使用）。
@@ -86,7 +100,17 @@ func (a *Aggregator) fetchOne(ctx context.Context, acc domain.Account) domain.Pr
 		}
 	}
 
-	u, err := p.FetchUsage(ctx, acc)
+	// per-account 兜底超时：给每次 FetchUsage 包独立 deadline，防止单 adapter
+	// 卡死（忘了设 HTTP 超时、或非 HTTP 阻塞）拖垮整个 FetchAll。a.timeout==0 不限。
+	// 时序契约：a.timeout 必须 > adapter 的 http.Client.Timeout，故默认 15s > 10s。
+	fetchCtx := ctx
+	if a.timeout > 0 {
+		var cancel context.CancelFunc
+		fetchCtx, cancel = context.WithTimeout(ctx, a.timeout)
+		defer cancel()
+	}
+
+	u, err := p.FetchUsage(fetchCtx, acc)
 	// 契约（err 透传）：即使 err != nil，provider 返回的 u 仍可能含 Dimensions/Primary
 	// （mock 在 err 路径仍 SelectPrimary）。aggregator 必须把 u 存入结果，不能丢弃或跳过。
 	// 仅当 provider 未把 err 写入 u.Err 时补齐（防御真实 adapter 返回零值 u 的情况）。
