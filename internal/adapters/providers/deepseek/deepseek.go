@@ -124,7 +124,8 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 		u.Status = "insufficient"
 	}
 	if len(r.BalanceInfos) == 0 {
-		u.Err = fmt.Errorf("deepseek: empty balance_infos"); return u, u.Err
+		u.Err = fmt.Errorf("deepseek: empty balance_infos")
+		return u, u.Err
 	}
 
 	info := r.BalanceInfos[0]

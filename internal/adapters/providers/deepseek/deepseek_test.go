@@ -102,9 +102,9 @@ func TestFetchUsageGolden(t *testing.T) {
 	}
 
 	// 账号状态：is_available=true → Status="active"
-		if u.Status != "active" {
-			t.Errorf("Status = %q, want active (is_available=true in golden)", u.Status)
-		}
+	if u.Status != "active" {
+		t.Errorf("Status = %q, want active (is_available=true in golden)", u.Status)
+	}
 
 	// 账号字段 + Basic Info
 	if u.AccountID != "d" || u.Provider != "deepseek" || u.Label != "DeepSeek" {
