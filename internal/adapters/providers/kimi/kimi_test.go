@@ -103,6 +103,12 @@ func TestFetchUsageGolden(t *testing.T) {
 	if d.Source != "api-balanced" {
 		t.Errorf("dim.Source = %q, want api-balanced", d.Source)
 	}
+	if d.Granted != 46.58893 {
+		t.Errorf("dim.Granted = %v, want 46.58893 (voucher_balance)", d.Granted)
+	}
+	if d.ToppedUp != 3.00001 {
+		t.Errorf("dim.ToppedUp = %v, want 3.00001 (cash_balance)", d.ToppedUp)
+	}
 
 	// (d) Primary 指向余额维度
 	if u.Primary == nil || u.Primary.Name != "Available balance" {
@@ -110,6 +116,9 @@ func TestFetchUsageGolden(t *testing.T) {
 	}
 
 	// 账号字段 + Basic Info
+	if u.Status != "" {
+		t.Errorf("Status = %q, want empty (kimi has no is_available)", u.Status)
+	}
 	if u.AccountID != "k" || u.Provider != "kimi" || u.Label != "Kimi" {
 		t.Errorf("top fields wrong: %+v", u)
 	}

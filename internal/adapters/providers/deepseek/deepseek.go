@@ -117,6 +117,12 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 		u.Err = fmt.Errorf("deepseek: decode response: %w", err)
 		return u, u.Err
 	}
+	// 账号可用状态：先于金额解析填充，确保错误路径（如空 balance_infos）也携带状态。
+	if r.IsAvailable {
+		u.Status = "active"
+	} else {
+		u.Status = "insufficient"
+	}
 	if len(r.BalanceInfos) == 0 {
 		u.Err = fmt.Errorf("deepseek: empty balance_infos")
 		return u, u.Err
@@ -133,6 +139,10 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 		u.Err = fmt.Errorf("deepseek: parse total_balance %q: %w", info.TotalBalance, err)
 		return u, u.Err
 	}
+	// 细分容错解析：ParseFloat 失败返回 0 值，用 _ 忽略 err——
+	// 主余额 total 已成功，细分缺失（=0）不致命，UI 自动跳过零值行。
+	granted, _ := strconv.ParseFloat(info.GrantedBalance, 64)
+	topped, _ := strconv.ParseFloat(info.ToppedUpBalance, 64)
 
 	u.Dimensions = []domain.UsageDimension{{
 		Name:        nameAvailable,
@@ -140,6 +150,8 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 		Currency:    info.Currency,
 		PercentUsed: -1,
 		Source:      sourceTag,
+		Granted:     granted,
+		ToppedUp:    topped,
 	}}
 	u.Primary = &u.Dimensions[0]
 	return u, nil

@@ -142,6 +142,8 @@ func (p *Provider) FetchUsage(ctx context.Context, acc domain.Account) (domain.P
 		Currency:    currencyFor(base),
 		PercentUsed: -1,
 		Source:      sourceTag,
+		Granted:     r.Data.VoucherBalance, // 赠送券 → Granted
+		ToppedUp:    r.Data.CashBalance,    // 现金 → ToppedUp
 	}}
 	u.Primary = &u.Dimensions[0] // 余额型：Primary 指向余额维度（不调 SelectPrimary）
 	return u, nil

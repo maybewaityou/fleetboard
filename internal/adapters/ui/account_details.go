@@ -83,6 +83,9 @@ func (d *AccountDetails) Render(u domain.ProviderUsage) {
 	if u.APIKeyStatus != "" {
 		b.WriteString(basicInfoLine("API Key", u.APIKeyStatus))
 	}
+	if u.Status != "" {
+		b.WriteString(basicInfoLine("Status", u.Status))
+	}
 	b.WriteString(basicInfoLine("BaseURL", firstNonEmpty(u.BaseURL, "—")))
 	b.WriteString(basicInfoLine("Endpoint", firstNonEmpty(u.Endpoint, "—")))
 	b.WriteString(basicInfoLine("Refreshed", refreshed))
@@ -206,10 +209,18 @@ func renderDimension(dim domain.UsageDimension) string {
 		return b.String()
 	}
 
-	// 余额型：只显示 Balance 行，不画进度条（余额无进度语义）。
+	// 余额型：显示 Balance 行，不画进度条（余额无进度语义）；非零细分追加 Granted/Topped up。
 	if dim.Currency != "" {
 		fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n",
 			colorSecondary, "Balance:", colorPrimary, formatMoney(dim.Balance, dim.Currency))
+		if dim.Granted != 0 {
+			fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n",
+				colorSecondary, "Granted:", colorPrimary, formatMoney(dim.Granted, dim.Currency))
+		}
+		if dim.ToppedUp != 0 {
+			fmt.Fprintf(&b, "    [%s]%-10s[-]  [%s]%s[-]\n",
+				colorSecondary, "Topped up:", colorPrimary, formatMoney(dim.ToppedUp, dim.Currency))
+		}
 		b.WriteString("\n")
 		return b.String()
 	}
