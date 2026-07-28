@@ -134,3 +134,16 @@ func TestAccountFormPrefillNewapi(t *testing.T) {
 		t.Errorf("UserID not prefilled: %q", f.text(afFieldUserID))
 	}
 }
+
+// TestProviderOptionsContainsSiliconFlow 验证 siliconflow 已加入下拉选项（末尾）。
+func TestProviderOptionsContainsSiliconFlow(t *testing.T) {
+	found := false
+	for _, v := range providerOptions {
+		if v == "siliconflow" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("providerOptions missing siliconflow: %v", providerOptions)
+	}
+}

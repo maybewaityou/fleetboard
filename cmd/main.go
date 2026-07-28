@@ -44,6 +44,7 @@ import (
 	"github.com/maybewaityou/fleetboard/internal/adapters/providers/kimi"
 	"github.com/maybewaityou/fleetboard/internal/adapters/providers/minimax"
 	"github.com/maybewaityou/fleetboard/internal/adapters/providers/newapi"
+	"github.com/maybewaityou/fleetboard/internal/adapters/providers/siliconflow"
 	"github.com/maybewaityou/fleetboard/internal/adapters/providers/sub2api"
 	"github.com/maybewaityou/fleetboard/internal/adapters/ui"
 	"github.com/maybewaityou/fleetboard/internal/app"
@@ -121,7 +122,7 @@ func run(sugar *zap.SugaredLogger) error {
 
 	// Hexagonal wiring: the registry holds the concrete adapters; the aggregator
 	// depends only on ports.ProviderLookup, which *providers.Registry satisfies.
-	reg := providers.NewRegistry(glm.New(), minimax.New(), kimi.New(), deepseek.New(), sub2api.New(), newapi.New())
+	reg := providers.NewRegistry(glm.New(), minimax.New(), kimi.New(), deepseek.New(), sub2api.New(), newapi.New(), siliconflow.New())
 	agg := services.NewAggregator(reg)
 
 	ctx, cancel := context.WithCancel(context.Background())
