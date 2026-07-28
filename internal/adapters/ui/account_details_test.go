@@ -129,6 +129,44 @@ func TestRenderDimensionBalance(t *testing.T) {
 	if strings.Contains(got, "N/A") {
 		t.Errorf("balance dim should NOT show N/A percent, got: %q", got)
 	}
+	if strings.Contains(got, "Granted:") {
+		t.Errorf("zero Granted should not render Granted line, got: %q", got)
+	}
+}
+
+// TestRenderDimensionBalanceBreakdown 验证余额型维度含非零细分时输出 Granted/Topped up 行。
+func TestRenderDimensionBalanceBreakdown(t *testing.T) {
+	dim := domain.UsageDimension{
+		Name: "Available balance", Balance: 110, Currency: "CNY",
+		Granted: 10, ToppedUp: 100, PercentUsed: -1,
+	}
+	got := renderDimension(dim)
+	for _, want := range []string{"Balance:", "¥110.00", "Granted:", "¥10.00", "Topped up:", "¥100.00"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("breakdown missing %q, got: %q", want, got)
+		}
+	}
+}
+
+// TestRenderStatusLine 验证 Status 非空时 Basic Info 含 Status 行；空时不渲染。
+func TestRenderStatusLine(t *testing.T) {
+	d := NewAccountDetails()
+	u := domain.ProviderUsage{
+		Provider: "deepseek", Label: "DS", Status: "active",
+		Dimensions: []domain.UsageDimension{{Name: "Available balance", Balance: 1, Currency: "CNY", PercentUsed: -1}},
+	}
+	u.Primary = &u.Dimensions[0]
+
+	d.Render(u)
+	if got := d.GetText(true); !strings.Contains(got, "Status:") || !strings.Contains(got, "active") {
+		t.Errorf("should render 'Status: active', got: %q", got)
+	}
+
+	u.Status = "" // 空 Status 不渲染该行
+	d.Render(u)
+	if strings.Contains(d.GetText(true), "Status:") {
+		t.Error("empty Status should not render Status line")
+	}
 }
 
 // TestRenderRecent 验证 Recent 区块渲染键值行。
