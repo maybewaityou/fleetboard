@@ -420,6 +420,25 @@ func TestDisplayDimension_NearestReset(t *testing.T) {
 	}
 }
 
+// TestDisplayDimension_OrderPrefers5hWithoutReset 是本修复的核心回归：GLM 偶发不返回
+// 5h 的 nextResetTime。旧逻辑因 5h 的 ResetsAt 为零而跳过它、改展示 weekly；新逻辑凭
+// Order 把 5h（Order=1）稳定选为列表展示维度，即便它没有重置时间。
+func TestDisplayDimension_OrderPrefers5hWithoutReset(t *testing.T) {
+	fiveH := domain.UsageDimension{Name: "5h Quota", PercentUsed: 44, Order: 1} // 无 ResetsAt
+	weekly := domain.UsageDimension{Name: "Weekly Quota", PercentUsed: 53, Order: 2, ResetsAt: time.Now().Add(7 * 24 * time.Hour)}
+	u := domain.ProviderUsage{
+		Provider:   "glm",
+		Dimensions: []domain.UsageDimension{weekly, fiveH},
+	}
+	d := displayDimension(u)
+	if d.Name != "5h Quota" {
+		t.Errorf("displayDimension = %q, want \"5h Quota\" (Order wins despite no reset)", d.Name)
+	}
+	if got := displayPercent(u); got != 44 {
+		t.Errorf("displayPercent = %v, want 44 (5h), not 53 (weekly)", got)
+	}
+}
+
 // TestDisplayDimension_FallbackPrimary verifies balance providers (no ResetsAt)
 // fall back to Primary so the balance still shows.
 func TestDisplayDimension_FallbackPrimary(t *testing.T) {

@@ -95,12 +95,23 @@ func (d *AccountDetails) Render(u domain.ProviderUsage) {
 	}
 	b.WriteString(basicInfoLine("Pinned", pinnedStr(u.Pinned)))
 
-	// Quota Dimensions：短期额度优先——按 ResetsAt 升序稳定排序（零值置后），
-	// 让 5h 滚动窗口排在 weekly/monthly 之前。各维度由 renderDimension 渲染为独立多行块。
+	// Quota Dimensions：短期额度优先——以 Order 为主键（GLM 5h=1 固定置顶，即便缺失 ResetsAt），
+	// 同档位序再按 ResetsAt 升序稳定排序（零值置后）。各维度由 renderDimension 渲染为独立多行块。
 	b.WriteString("\n[" + colorTitle + "::b]Quota Dimensions[-]\n")
 	dims := make([]domain.UsageDimension, len(u.Dimensions))
 	copy(dims, u.Dimensions)
 	sort.SliceStable(dims, func(i, j int) bool {
+		oi, oj := dims[i].Order, dims[j].Order
+		if oi != oj {
+			// 0=未设置（余额型/relay）排到有显式序（>0）之后，让 GLM 多档窗口优先展示。
+			if oi == 0 {
+				return false
+			}
+			if oj == 0 {
+				return true
+			}
+			return oi < oj
+		}
 		ti, tj := dims[i].ResetsAt, dims[j].ResetsAt
 		if ti.IsZero() {
 			return false // 无重置信息的维度排最后

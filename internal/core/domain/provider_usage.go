@@ -96,6 +96,12 @@ type UsageDimension struct {
 	// 金额剩余复用 Balance 字段（Balance = MoneyLimit - MoneyUsed）。
 	MoneyLimit float64
 	MoneyUsed  float64
+
+	// Order 是该维度在 provider 原生多档配额中的展示优先级（1=最优先置顶，越大越靠后）。
+	// 仅多档配额型 adapter 填充：GLM 的 5h=1、weekly=2、MCP每月=3。零值=未设置，UI 据此
+	// 在维度缺失 ResetsAt 时仍能稳定选出/置顶最短期窗口（GLM 偶发不返回 5h 的 nextResetTime，
+	// 若靠重置时间排序会把 5h 误排到 weekly/MCP 之后）。零值维度保持既有「最近重置」逻辑。
+	Order int
 }
 
 // SelectPrimary 把 PercentUsed 最大的有效维度设为 Primary（最值得警惕的一档）。

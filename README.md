@@ -16,7 +16,7 @@ account still has headroom.
 
 - **One screen, all providers** — each account is a row: label, provider chip, usage %, status dot.
 - **Quota + balance** — percentage windows (GLM 5h/weekly/monthly, MiniMax) **and** account balance (Kimi, DeepSeek, new-api, sub2api).
-- **Nearest-window priority** — the list surfaces the quota window that resets soonest, so the most urgent tier is always visible.
+- **Headline-window priority** — the list always surfaces the shortest quota tier (e.g. GLM's rolling 5h window), even when the provider omits that tier's reset time, so the most urgent quota is always visible.
 - **Two refresh granularities** — `r` re-fetches the selected account, `R` re-fetches all.
 - **Manual CRUD** — add / edit / delete / pin accounts; config lives in `~/.fleetboard/config.yaml`.
 - **Search & sort** — `/` to filter, `s`/`S` to cycle sort (name / usage / refreshed).

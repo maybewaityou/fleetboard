@@ -200,3 +200,33 @@ func TestRenderRecentTodayTotal(t *testing.T) {
 		t.Errorf("zero Window7d/30d should not render, got: %q", got)
 	}
 }
+
+// TestRender_DimensionsOrderedByOrder 验证详情按 Order 为主键排序：即便 5h 缺 ResetsAt
+// （GLM 偶发），它也因 Order=1 排在 weekly(Order=2)/MCP(Order=3) 之前。
+func TestRender_DimensionsOrderedByOrder(t *testing.T) {
+	d := NewAccountDetails()
+	now := time.Now()
+	// 故意把 weekly 放在 Dimensions 切片最前，验证 Render 会按 Order 重排而非保持切片序。
+	u := domain.ProviderUsage{
+		Provider: "glm",
+		Label:    "智谱",
+		Dimensions: []domain.UsageDimension{
+			{Name: "Weekly Quota", PercentUsed: 53, Order: 2, ResetsAt: now.Add(7 * 24 * time.Hour)},
+			{Name: "MCP Monthly", PercentUsed: 7, Order: 3, ResetsAt: now.Add(30 * 24 * time.Hour)},
+			{Name: "5h Quota", PercentUsed: 44, Order: 1}, // 无 ResetsAt
+		},
+	}
+	d.Render(u)
+	got := d.GetText(true)
+
+	// 三个维度名在输出中应按 5h → weekly → MCP 的顺序出现。
+	i5h := strings.Index(got, "5h Quota")
+	iWeekly := strings.Index(got, "Weekly Quota")
+	iMCP := strings.Index(got, "MCP Monthly")
+	if i5h < 0 || iWeekly < 0 || iMCP < 0 {
+		t.Fatalf("missing dim names in render: 5h=%d weekly=%d mcp=%d\n%s", i5h, iWeekly, iMCP, got)
+	}
+	if i5h >= iWeekly || iWeekly >= iMCP {
+		t.Errorf("dim order wrong: 5h=%d weekly=%d mcp=%d, want 5h<weekly<mcp", i5h, iWeekly, iMCP)
+	}
+}

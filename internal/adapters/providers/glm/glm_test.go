@@ -103,10 +103,21 @@ func TestFetchUsageGolden(t *testing.T) {
 		t.Errorf("missing Weekly Quota/53 dim; dims=%+v", u.Dimensions)
 	}
 
+	// Order 档位序：5h=1、weekly=2（MCP 每月=3 在下方 mcp 定义后断言）。
+	if d, ok := findDim(u.Dimensions, "5h Quota"); !ok || d.Order != 1 {
+		t.Errorf("5h Quota.Order = %d, want 1; dims=%+v", d.Order, u.Dimensions)
+	}
+	if d, ok := findDim(u.Dimensions, "Weekly Quota"); !ok || d.Order != 2 {
+		t.Errorf("Weekly Quota.Order = %d, want 2; dims=%+v", d.Order, u.Dimensions)
+	}
+
 	// TIME_LIMIT 字段映射：Used=currentValue, Limit=usage, Remaining=remaining, Unit="uses"
 	mcp, ok := findDim(u.Dimensions, "MCP Monthly")
 	if !ok {
 		t.Fatalf("missing MCP Monthly dim; dims=%+v", u.Dimensions)
+	}
+	if mcp.Order != 3 {
+		t.Errorf("MCP Monthly.Order = %d, want 3", mcp.Order)
 	}
 	if mcp.Used != 72 || mcp.Limit != 1000 || mcp.Remaining != 928 {
 		t.Errorf("MCP Monthly fields: Used=%d Limit=%d Remaining=%d, want 72/1000/928", mcp.Used, mcp.Limit, mcp.Remaining)
@@ -176,9 +187,47 @@ func TestFetchUsageUnsortedTokens(t *testing.T) {
 	if u.Dimensions[1].Name != "Weekly Quota" || u.Dimensions[1].PercentUsed != 53 {
 		t.Errorf("dims[1] = %+v, want Weekly Quota/53", u.Dimensions[1])
 	}
+	// Order 同步赋值：位置决定档位序（5h=1、weekly=2），与 reset 时间无关。
+	if u.Dimensions[0].Order != 1 || u.Dimensions[1].Order != 2 {
+		t.Errorf("Orders = %d/%d, want 1/2", u.Dimensions[0].Order, u.Dimensions[1].Order)
+	}
 	// Primary 仍是 53 那档（按 PercentUsed 选，与排序无关）
 	if u.Primary == nil || u.Primary.Name != "Weekly Quota" {
 		t.Errorf("Primary = %+v, want Weekly Quota", u.Primary)
+	}
+}
+
+// TestFetchUsage5hMissingReset 覆盖 GLM 偶发不返回 5h 的 nextResetTime 的真实场景：
+// 此时 5h 的 ResetsAt 为零值，但零时间早于一切，升序后仍落位置 0、命名 "5h Quota" 且 Order=1，
+// 故 UI 能凭 Order 把它稳定置顶（不靠重置时间）。
+func TestFetchUsage5hMissingReset(t *testing.T) {
+	payload := `{"code":200,"data":{"limits":[
+	  {"type":"TOKENS_LIMIT","percentage":44},
+	  {"type":"TOKENS_LIMIT","percentage":53,"nextResetTime":1775606400000}]}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, payload)
+	}))
+	defer srv.Close()
+
+	t.Setenv("GLM_API_KEY", "K")
+	acc := domain.Account{ID: "g", Provider: "glm", TokenEnv: "GLM_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(u.Dimensions) != 2 {
+		t.Fatalf("dims = %d, want 2", len(u.Dimensions))
+	}
+	fiveH := u.Dimensions[0]
+	if fiveH.Name != "5h Quota" || fiveH.PercentUsed != 44 {
+		t.Errorf("dims[0] = %+v, want 5h Quota/44", fiveH)
+	}
+	// 5h 缺时间：ResetsAt 必须是零值（绝不伪造），但 Order 仍为 1（UI 据此置顶）。
+	if !fiveH.ResetsAt.IsZero() {
+		t.Errorf("5h ResetsAt = %v, want zero (API omitted it)", fiveH.ResetsAt)
+	}
+	if fiveH.Order != 1 {
+		t.Errorf("5h Order = %d, want 1 (must stay headline even without reset)", fiveH.Order)
 	}
 }
 

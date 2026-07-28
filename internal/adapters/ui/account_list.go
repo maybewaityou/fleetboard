@@ -129,12 +129,29 @@ func (al *AccountList) SetSortTitle(mode string) {
 	al.SetTitle(" Accounts — Sort: " + mode + " ")
 }
 
-// displayDimension returns the dimension shown in the list: the one with the
-// soonest non-zero ResetsAt (the nearest reset window — "最近时间"), falling back
-// to Primary when no dimension carries a reset time (balance providers such as
-// kimi/deepseek), then nil. -1 from PercentUsed is the sentinel StatusColor
-// reads as "gray", so the list dot and details bar degrade consistently.
+// displayDimension returns the dimension shown in the list.
+//
+//  1. 显式档位序优先：取 Order>0 中最小者（GLM 把 5h 标为 1）。这样 GLM 偶发不返回
+//     5h 的 nextResetTime（ResetsAt 零值）时，列表仍稳定展示 5h，而不会回退到 weekly/MCP。
+//  2. 无显式序（余额型/relay）：最近重置窗口（最早的 ResetsAt），再回退 Primary。
+//
+// -1 from PercentUsed is the sentinel StatusColor reads as "gray", so the list
+// dot and details bar degrade consistently.
 func displayDimension(u domain.ProviderUsage) *domain.UsageDimension {
+	var ordered *domain.UsageDimension
+	for i := range u.Dimensions {
+		d := &u.Dimensions[i]
+		if d.Order <= 0 {
+			continue
+		}
+		if ordered == nil || d.Order < ordered.Order {
+			ordered = d
+		}
+	}
+	if ordered != nil {
+		return ordered
+	}
+
 	var nearest *domain.UsageDimension
 	for i := range u.Dimensions {
 		d := &u.Dimensions[i]

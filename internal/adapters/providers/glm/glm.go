@@ -61,6 +61,13 @@ const (
 	nameTokensWeekly = "Weekly Quota"
 	nameTimeMonthly  = "MCP Monthly"
 
+	// Order：多档配额的展示优先级（domain.UsageDimension.Order）。5h 是最短期/最值得警惕的
+	// 窗口，固定置顶；weekly 次之；MCP 每月最后。即便 GLM 偶发不返回 5h 的 nextResetTime，
+	// UI 仍能凭 Order 把 5h 稳定排到列表展示位与详情顶部。
+	order5h      = 1
+	orderWeekly  = 2
+	orderMonthly = 3
+
 	respCodeOK = 200
 )
 
@@ -168,6 +175,7 @@ func buildDimensions(limits []apiLimit) []domain.UsageDimension {
 				ResetsAt:    parseResetTime(l.NextResetTime),
 				Unit:        unitCount,
 				Source:      sourceTag,
+				Order:       orderMonthly,
 			})
 		case limitTypeTokens:
 			tokens = append(tokens, l)
@@ -175,14 +183,21 @@ func buildDimensions(limits []apiLimit) []domain.UsageDimension {
 	}
 
 	// TOKENS_LIMIT 按 nextResetTime 升序（数字时间戳，用解析后的 time 比较，兼容秒/毫秒）。
+	// 升序后位置 0=5h、位置 1=weekly；零重置时间（time.Time{}）早于一切，故即便 5h 缺时间
+	// 仍稳定落在位置 0，命名与 Order 赋值都不受影响。
 	sort.Slice(tokens, func(i, j int) bool {
 		return parseResetTime(tokens[i].NextResetTime).Before(parseResetTime(tokens[j].NextResetTime))
 	})
 	tokenNames := []string{nameTokens5h, nameTokensWeekly}
+	tokenOrders := []int{order5h, orderWeekly}
 	for i, l := range tokens {
 		name := fmt.Sprintf("Quota #%d", i+1)
+		order := i + orderWeekly // 超出预定义档位时按位置递增，保证仍有确定序
 		if i < len(tokenNames) {
 			name = tokenNames[i]
+		}
+		if i < len(tokenOrders) {
+			order = tokenOrders[i]
 		}
 		dims = append(dims, domain.UsageDimension{
 			Name:        name,
@@ -190,6 +205,7 @@ func buildDimensions(limits []apiLimit) []domain.UsageDimension {
 			ResetsAt:    parseResetTime(l.NextResetTime),
 			Unit:        unitPercent,
 			Source:      sourceTag,
+			Order:       order,
 		})
 	}
 	return dims
