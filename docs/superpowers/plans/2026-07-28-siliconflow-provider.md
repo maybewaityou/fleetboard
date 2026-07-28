@@ -73,6 +73,7 @@ func TestUsageDimensionSiliconFlowFields(t *testing.T) {
 		t.Errorf("zero-value fields should be 0, got charge=%v total=%v", zero.ChargeBalance, zero.TotalBalance)
 	}
 }
+```
 
 - [ ] **Step 2: 运行测试验证失败**
 
