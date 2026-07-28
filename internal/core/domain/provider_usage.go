@@ -102,6 +102,13 @@ type UsageDimension struct {
 	Granted  float64
 	ToppedUp float64
 
+		// SiliconFlow 余额信息（adapter 填充，UI 读取）。零值=无，UI 不渲染。
+		// 与 Granted/ToppedUp（剩余拆分，相加=Balance）语义不同：这里是 API 原值，
+		// 不做相加约定——官方未保证 chargeBalance/totalBalance 与 balance 的恒等关系。
+		// 仅 siliconflow provider 填充；配额型与其他余额型 provider 零值=无。
+		ChargeBalance float64
+		TotalBalance  float64
+
 	// 金额型配额窗口（USD）：sub2api 的 rate_limits 与订阅日/周/月限额。非零时 renderDimension
 	// 走金额配额分支（显示 $used/$limit + 进度条）；token 型 provider 不填，零值跳过。
 	// 金额剩余复用 Balance 字段（Balance = MoneyLimit - MoneyUsed）。
