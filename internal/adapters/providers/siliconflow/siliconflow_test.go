@@ -34,6 +34,152 @@ func TestProviderReturnsSiliconFlow(t *testing.T) {
 	}
 }
 
+// TestFetchUsageNon200 验证非 2xx 被状态守卫拦截，错误路径仍填充账号字段。
+func TestFetchUsageNon200(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"code":40100,"message":"invalid api key"}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("SILICONFLOW_API_KEY", "BAD")
+	acc := domain.Account{ID: "sf", Provider: "siliconflow", Label: "SiliconFlow", TokenEnv: "SILICONFLOW_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err == nil {
+		t.Fatal("expected error for HTTP 401")
+	}
+	if u.Err == nil {
+		t.Error("u.Err should be set")
+	}
+	if len(u.Dimensions) != 0 {
+		t.Errorf("Dimensions should be empty on HTTP error, got %+v", u.Dimensions)
+	}
+	if u.Primary != nil {
+		t.Errorf("Primary should be nil on HTTP error, got %+v", u.Primary)
+	}
+	if u.AccountID != "sf" || u.Provider != "siliconflow" || u.Label != "SiliconFlow" {
+		t.Errorf("error-path fields wrong: %+v", u)
+	}
+}
+
+// TestFetchUsageBadJSON 验证解码失败返回错误且填充 u.Err。
+func TestFetchUsageBadJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `not-json`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("SILICONFLOW_API_KEY", "K")
+	acc := domain.Account{ID: "sf", Provider: "siliconflow", Label: "SiliconFlow", TokenEnv: "SILICONFLOW_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err == nil {
+		t.Fatal("expected error for bad JSON, got nil")
+	}
+	if u.Err == nil {
+		t.Error("u.Err should be set on decode error")
+	}
+}
+
+// TestFetchUsageBadEnvelope 验证 HTTP 200 但业务 code≠20000 被信封守卫拦截。
+func TestFetchUsageBadEnvelope(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"code":40100,"message":"invalid api key","status":false,"data":{}}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("SILICONFLOW_API_KEY", "K")
+	acc := domain.Account{ID: "sf", Provider: "siliconflow", Label: "SiliconFlow", TokenEnv: "SILICONFLOW_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err == nil {
+		t.Fatal("expected error for code!=20000, got nil")
+	}
+	if u.Err == nil {
+		t.Error("u.Err should be set on bad envelope")
+	}
+}
+
+// TestFetchUsageBadBalance 验证主余额非数字时整体失败（严格解析）。
+func TestFetchUsageBadBalance(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"code":20000,"message":"OK","status":true,"data":{"balance":"oops","status":"normal","chargeBalance":"88.00","totalBalance":"88.88"}}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("SILICONFLOW_API_KEY", "K")
+	acc := domain.Account{ID: "sf", Provider: "siliconflow", Label: "SiliconFlow", TokenEnv: "SILICONFLOW_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err == nil {
+		t.Fatal("expected error for non-numeric balance, got nil")
+	}
+	if len(u.Dimensions) != 0 {
+		t.Errorf("Dimensions should be empty when balance parse fails, got %+v", u.Dimensions)
+	}
+}
+
+// TestFetchUsageBadChargeBalance 验证细分解析失败不致命：主余额照常成功，细分留零值。
+func TestFetchUsageBadChargeBalance(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"code":20000,"message":"OK","status":true,"data":{"balance":"5.00","status":"normal","chargeBalance":"oops","totalBalance":"oops"}}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("SILICONFLOW_API_KEY", "K")
+	acc := domain.Account{ID: "sf", Provider: "siliconflow", Label: "SiliconFlow", TokenEnv: "SILICONFLOW_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err != nil {
+		t.Fatalf("unexpected err (bad chargeBalance must NOT fail): %v", err)
+	}
+	d := u.Dimensions[0]
+	if d.Balance != 5.0 {
+		t.Errorf("dim.Balance = %v, want 5.0 (balance preserved)", d.Balance)
+	}
+	if d.ChargeBalance != 0 {
+		t.Errorf("dim.ChargeBalance = %v, want 0 (parse failure → zero)", d.ChargeBalance)
+	}
+	if d.TotalBalance != 0 {
+		t.Errorf("dim.TotalBalance = %v, want 0 (parse failure → zero)", d.TotalBalance)
+	}
+}
+
+// TestFetchUsageStatusNonNormal 验证非 normal 状态保留原值字符串。
+func TestFetchUsageStatusNonNormal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"code":20000,"message":"OK","status":true,"data":{"balance":"1.00","status":"frozen","chargeBalance":"0","totalBalance":"1.00"}}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("SILICONFLOW_API_KEY", "K")
+	acc := domain.Account{ID: "sf", Provider: "siliconflow", Label: "SiliconFlow", TokenEnv: "SILICONFLOW_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if u.Status != "frozen" {
+		t.Errorf("Status = %q, want frozen (preserved original)", u.Status)
+	}
+}
+
+// TestFetchUsageServerDown 验证传输错误透传 + 账号字段仍填充。
+func TestFetchUsageServerDown(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, goldenPayload)
+	}))
+	srv.Close() // 关闭 server，触发传输错误
+
+	t.Setenv("SILICONFLOW_API_KEY", "K")
+	acc := domain.Account{ID: "sf", Provider: "siliconflow", Label: "SiliconFlow", TokenEnv: "SILICONFLOW_API_KEY", BaseURL: srv.URL}
+	u, err := New().FetchUsage(context.Background(), acc)
+	if err == nil {
+		t.Fatal("expected error when server down")
+	}
+	if u.Err == nil {
+		t.Error("u.Err should be set on transport error")
+	}
+	if u.AccountID != "sf" || u.Provider != "siliconflow" || u.Label != "SiliconFlow" {
+		t.Errorf("error-path fields wrong: %+v", u)
+	}
+}
+
 // TestFetchUsageGolden：
 //
 //	(a) Authorization = "Bearer KEY123"，Content-Type = application/json
